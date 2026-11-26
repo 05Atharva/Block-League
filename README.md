@@ -45,6 +45,8 @@ You may alternatively set `EXPO_PUBLIC_API_URL` in `app/.env` before starting Ex
 - Three-move tutorial, untimed beginner practice, free practice hints/undo, solo autosave, earned stars/cosmetics and pass-and-play family duels.
 - Separate local family profiles, private aliases, adult-only test reward offers, child social/sharing gates and PIN-protected guardian settings on the pilot server.
 - Live Face-Off: identical sequences, 30 placements, 15-minute window, 60-second reconnect grace. Async duels: 24-hour window. Confirmed scores only; no competitive ad boosts, undo or revives.
+- Open an eligible private async challenge while connected to save its board. You can finish it offline and reopen it to submit before the deadline. The server verifies every queued move before updating the official score.
+- The Notifications drawer shows match results, upcoming async deadlines, and optional break reminders for the active profile. Quiet mode and a one-hour mute control foreground reminders.
 - Preset reactions, host removal of unstarted guests, post-final opponent replay, largest-scoring-move jump, spoiler-free PNG result-card export and seed challenge links.
 - Private three-person teams with captain approval, locked rosters, 4-team Mini Leagues and 8-team Championships. Round robin, published tie-breaks, qualification deciders, Qualifier 1, Eliminator, Qualifier 2 and Final. Only server-computed results advance a season.
 - Reports stored for administrator review; private bearer-key account recovery; version-checked cloud backup of unverified personal progress separately from authoritative competitive results.
@@ -62,6 +64,8 @@ npm run build:web
 npm run build:native
 npx playwright install chromium
 npm run test:ui
+npm run test:motion
+npm run test:interactions
 ```
 
 `npm test` uses Node's test runner. `simulate` plays 500 deterministic games and verifies all replays. `test:ui` starts its own temporary server and uses two separate browsers. `build:native` exports Android and iOS JavaScript/Hermes bundles; it does **not** create an APK/IPA or demonstrate execution on a physical phone.

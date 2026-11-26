@@ -86,8 +86,8 @@
     "release": "MVP",
     "acceptance": "No streak-loss or team-loss warning is shown on exit.",
     "status": "Implemented",
-    "implementation": "Round result and voluntary exit preserve rewards.",
-    "validation": "Tutorial/results UI; no punitive streak/exit mechanics."
+    "implementation": "Finish confirmation is cancellable. Round result and voluntary exit preserve earned progress.",
+    "validation": "Tutorial/results UI and interaction checks."
   },
   {
     "id": "US-10",
@@ -106,7 +106,7 @@
     "release": "MVP",
     "acceptance": "Expired codes fail clearly and hosts can remove unstarted seats.",
     "status": "Implemented",
-    "implementation": "Expiring 8-character codes; host removes unstarted guest.",
+    "implementation": "Expiring 8-character codes. Host removal of an unstarted guest requires confirmation.",
     "validation": "Room expiry and host removal tests."
   },
   {
@@ -175,9 +175,9 @@
     "feature": "Offline practice",
     "release": "MVP",
     "acceptance": "Offline practice is clearly unranked; ranked submission needs verification.",
-    "status": "Partial",
-    "implementation": "Native offline practice/solo; online attempts require server confirmation.",
-    "validation": "Autosave/hint tests. Offline competitive move submission is not implemented."
+    "status": "Implemented in the pilot",
+    "implementation": "Native offline practice and Solo remain unranked. An opened private async challenge can queue moves and finish offline. The server applies the batch atomically against the confirmed board before the deadline.",
+    "validation": "Browser disconnect/reload/reconnect check plus atomicity, retry and expiry tests."
   },
   {
     "id": "US-19",
@@ -195,9 +195,9 @@
     "feature": "Quiet hours",
     "release": "V1.1",
     "acceptance": "Disabled reminders are not replaced with urgency notifications.",
-    "status": "Partial",
-    "implementation": "Quiet mode mutes foreground reminders without urgency replacements.",
-    "validation": "Settings code. Scheduled push notifications/clock-based quiet-hour windows are not implemented."
+    "status": "Implemented for in-app reminders",
+    "implementation": "Per-profile quiet mode and a persisted one-hour mute cover break and competition reminders. Results remain in the foreground notification inbox. Expired break intervals are not replayed.",
+    "validation": "Browser timed mute and persistence tests. Remote push delivery is outside the pilot."
   },
   {
     "id": "US-21",
@@ -216,8 +216,8 @@
     "release": "V1.1",
     "acceptance": "Post-lock replacements follow an explicit recorded rule.",
     "status": "Implemented",
-    "implementation": "Three approved members; roster locks on entry. No mid-season substitutions.",
-    "validation": "Post-lock edit rejection tests."
+    "implementation": "Explicit confirmation before entering a team and locking its three approved players. Post-lock edits are rejected.",
+    "validation": "Roster lock and membership tests."
   },
   {
     "id": "US-23",
@@ -246,8 +246,8 @@
     "release": "MVP",
     "acceptance": "No opponent identity is included without that player's permission.",
     "status": "Implemented; native QA pending",
-    "implementation": "Opt-in PNG card and spoiler-free same-seed practice link; no opponent identity.",
-    "validation": "Browser PNG export test. Native sharing handoff needs phone verification."
+    "implementation": "Responsive result-card preview and PNG export. Same-seed unranked challenge link falls back to copying in browsers without a share sheet.",
+    "validation": "Browser PNG export; native share handoff still requires device QA."
   },
   {
     "id": "US-26",
@@ -306,7 +306,7 @@
     "release": "MVP",
     "acceptance": "Returning restores the last confirmed local move.",
     "status": "Implemented",
-    "implementation": "Last confirmed solo state autosaves locally; failed save is visible/retryable.",
+    "implementation": "Last confirmed solo state autosaves locally. Storage failures have an inline retry.",
     "validation": "Reload/resume browser UI test."
   },
   {
@@ -316,8 +316,8 @@
     "release": "MVP",
     "acceptance": "Tutorials, errors and results have visual equivalents.",
     "status": "Implemented",
-    "implementation": "All play, tutorial, errors, result and connection cues are visual/textual.",
-    "validation": "UI tests run without sound."
+    "implementation": "Play, tutorial, errors, results and connectivity have visible text. Status and error toasts use live-region semantics and explicit dismissal.",
+    "validation": "Browser gameplay and toast interaction checks."
   },
   {
     "id": "US-33",
@@ -346,8 +346,8 @@
     "release": "V1.1",
     "acceptance": "Turns are separated and local scores are marked unranked.",
     "status": "Implemented",
-    "implementation": "Pass-and-play handoff hides first board, second gets same seed; unranked result.",
-    "validation": "Shared seed engine plus family-duel UI."
+    "implementation": "Pass-and-play handoff keeps the first board hidden, supplies the same pieces to player two and offers an explicit exit.",
+    "validation": "Shared engine and family-duel browser checks."
   },
   {
     "id": "US-36",
@@ -396,8 +396,8 @@
     "release": "MVP",
     "acceptance": "Reminder dismissal never removes rewards or penalises a team.",
     "status": "Implemented",
-    "implementation": "Session duration and optional foreground break reminders with quiet mode.",
-    "validation": "Code implementation; no reward/league penalty on dismissal."
+    "implementation": "Duration tracks foreground time. Optional break reminders are nonblocking, saved to the inbox, and respect quiet mode.",
+    "validation": "Browser timed mute and notification drawer checks."
   },
   {
     "id": "US-41",
@@ -406,8 +406,8 @@
     "release": "MVP",
     "acceptance": "Controls remain usable at supported maximum text size.",
     "status": "Implemented; native QA pending",
-    "implementation": "100–200% custom text size with scrolling/reflow.",
-    "validation": "Browser 320/360/390/768-width 200% checks; native layout testing pending."
+    "implementation": "100–200% custom text with reflow and scrollable overlays.",
+    "validation": "Browser 320/360/390/768-width checks and 320 px drawer check."
   },
   {
     "id": "US-42",
@@ -446,8 +446,8 @@
     "release": "MVP",
     "acceptance": "Help is accessible from the board without losing solo progress.",
     "status": "Implemented",
-    "implementation": "Plain-language Help modal from board without replacing saved solo; replayable tutorial.",
-    "validation": "Tutorial UI; modal path source inspection."
+    "implementation": "Replayable tutorial and accessible Help dialog without replacing the saved solo board.",
+    "validation": "Browser keyboard dismissal and board preservation checks."
   },
   {
     "id": "US-46",
@@ -486,8 +486,8 @@
     "release": "V1.1",
     "acceptance": "Translated text and Devanagari fonts fit supported layouts.",
     "status": "Partial localisation",
-    "implementation": "Hindi/Marathi core menus and learning, bundled Devanagari; secondary/dynamic messages still English.",
-    "validation": "Browser language/layout checks; native-speaker and full-string QA pending."
+    "implementation": "Hindi and Marathi core menus and learning, bundled Devanagari, and translations for notifications and common confirmations. Secondary and dynamic messages still need coverage.",
+    "validation": "Browser language/layout checks; native-speaker review and full-string QA pending."
   },
   {
     "id": "US-50",

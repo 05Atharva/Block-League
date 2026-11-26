@@ -44,4 +44,11 @@ The motion pass applies staging, anticipation, follow-through, and custom easing
 
 ## Review checklist
 
+### Interaction surfaces
+
+- Use the shared Toast for immediate feedback. Confirmations use the shared Dialog, put the safe action first, and name the action and consequence. Error toasts stay until dismissal. Timed toasts pause while their dismiss button has keyboard focus.
+- Use the shared Overlay for preview, family handoff, and the Notifications drawer. The floating drawer rises from the bottom on phones and opens on the right on wider screens. Notification cards use the game's tile colours and open the associated match directly. Dialog and drawer contents scroll when type or viewport size requires it. The 210 ms entrance respects the effective motion setting.
+- Store inbox items by profile. An opened match can show confirmed results via the inbox. Deadline and break reminders respect quiet mode and the one-hour mute. A break reminder leaves the board and any open confirmation in place.
+- Label offline async points as local while they await verification. Conflicting or expired drafts can be kept or explicitly discarded in favour of the confirmed board.
+
 Play through first run, resume, preview and confirm, line clear, result, and rematch. Run `npm run test:motion` after exporting the web build to compare standard motion, system reduced motion, Low effects, and the app's motion switch. Set `BLOCK_LEAGUE_MOTION_CAPTURES` to a directory to record screenshots and video from that pass. Inspect narrow phones at 200% text, high contrast, and two browser clients on a private match. Confirm outcome legibility with sound off and complete the physical Android and iOS checks for touch, haptics, assistive technology, and frame pacing.

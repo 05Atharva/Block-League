@@ -1,5 +1,11 @@
 # Validation report — 5 November 2026
 
+## Interaction and story coverage pass
+
+- `npm test` covers atomic offline async submission, idempotent retry, rejection after a deadline, and protection of live matches in addition to the original engine and server suite.
+- `npm run test:interactions` checks toast dismissal and live-region semantics, keyboard focus restoration, cancellable finish and help overlays, the notification drawer at 320 px with 200% text and at desktop width, timed quiet preferences, and offline reload and reconnection through a result notification.
+- `npm run test:ui` checks guest-removal cancellation and the leave-match warning in the two-player path. The [coverage matrix](50-STORY-COVERAGE.md) records all 50 stories and outstanding release acceptance.
+
 ## Results
 
 | Check | Result | What this establishes |

@@ -17,4 +17,4 @@ Block League is a mobile-first, silent-first puzzle game. The primary audience i
 
 ## Validation
 
-Run `npm test` and `npm run check`. For UI changes, run `npm run build:web` and `npm run test:ui`, then inspect the changed screens at narrow phone width in light and dark. Run `npm run test:motion` for changes to motion. Check high contrast, 200% text, and keyboard navigation as applicable. Update the exported browser build for changes visible in the client. Attribute browser evidence to browser checks and record physical-device checks separately.
+Run `npm test` and `npm run check`. For UI changes, run `npm run build:web` and `npm run test:ui`, then inspect the changed screens at narrow phone width in light and dark. Run `npm run test:motion` for changes to motion and `npm run test:interactions` for overlays, notifications, and offline submission. Check high contrast, 200% text, and keyboard navigation as applicable. Update the exported browser build for changes visible in the client. Attribute browser evidence to browser checks and record physical-device checks separately.

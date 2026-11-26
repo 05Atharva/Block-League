@@ -20,6 +20,8 @@ Move the single-process JSON state to the planned durable database and transacti
 
 Qualification ties use head-to-head reapplication, individual duel wins, then a fresh-seed captain mini-round-robin among tied qualifying teams. If that decider round remains cyclic/tied, schedule another round among the unresolved subgroup. This elaborates the original “scheduled decider” rule. An organiser must publish these rules before inviting players.
 
+The Notifications drawer is a foreground inbox. System push would require a registered device channel, consent preferences, delivery credentials, and a backend job for deadlines. The pilot stores quiet preferences and applies them to in-app reminder generation.
+
 ## Localisation and accessibility — US-39, US-41, US-46, US-49
 
 Implemented: scalable layout, 52-pixel general buttons, high contrast, occupied-cell symbols, tap-to-place, custom motion opt-out, system reduced-motion response, Hindi/Marathi core menu and tutorial translations, Devanagari font. Still needed: native-speaker review of all secondary/dynamic messages; full localisation of league/server errors; TalkBack/VoiceOver testing; a magnified placement mode if users need larger-than-cell targets; real Android/iOS drag tests and measurements on representative budget phones.

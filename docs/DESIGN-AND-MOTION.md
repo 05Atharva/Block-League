@@ -1,41 +1,47 @@
-# Design and motion system
+# Block League design and motion
 
-Reference read for this build: https://www.figma.com/resource-library/ui-design-principles/ (5 November 2026).
+The logo pairs a coral corner piece with a slightly rotated citron tile. The corner is stable. The open space and offset tile suggest the next decision. Use the source mark in [app/assets](../app/assets/block-league-mark.svg) for exports, with the in-app mark, platform icons, favicon, and share cards following the same silhouette. The finished tile motif appears on round results.
 
-## Seven principles applied
+## Player flows
 
-| Principle | Implementation |
+| Player need | Screen and design decision |
 |---|---|
-| Hierarchy | One large Solo action; score dominates play; match status and finality are explicit. |
-| Progressive disclosure | Home → friends or clubhouse → room/team/season. Settings, account recovery and cosmetics live in You. |
-| Consistency | Shared Button, Card, Tag, Input, Row and typography primitives; semantic theme maps. |
-| Contrast | Dark framed board, separated empty cells, occupied-cell patterns, high-contrast theme. |
-| Accessibility | 100–200% type, optional Atkinson, native accessibility labels, tap/confirm, reduced motion and silent feedback. |
-| Proximity | Scores grouped by player; tray adjacent to placement controls; destructive finishing is separate. |
-| Alignment | Shared 20px page inset, 24px card radius, regular spacing; reflow instead of clipping large labels. |
+| New or younger player learning by doing (US-01–03, US-08) | Play gives Solo the primary action. Learn and Beginner practice are available from the same screen. The board uses a full-shape preview before confirmation. |
+| Someone playing in a short break (US-31–33, US-44, US-50) | Resume replaces the fresh Solo action when a save exists. Progress is visible locally. Private Face-Off and Club have short labels that explain what opens next. |
+| Friends or competitive players (US-11–17, US-21–29) | Preserve room state, deadlines, and official versus pending results. Reveal opponent moves after both attempts are final. Use specific verified achievements tied to actual play. |
+| Families and mixed experience levels (US-04–10, US-35, US-47) | Preserve profile isolation, pass-and-play handoff, and guardian gates. Give each round a clear stopping point. |
+| Players who need more comfortable controls (US-39–46, US-49) | Maintain high contrast, pattern mode, 100–200% text, Atkinson and Noto Devanagari, tap-to-place, silent feedback, and optional motion. |
 
-## Colour behaviour
+The screen hierarchy, grouping, contrast, alignment, and progressively disclosed competition views are based on [Figma’s UI design principles](https://www.figma.com/resource-library/ui-design-principles/).
 
-Three curated six-colour palettes: Club confetti, Garden party and Aurora. A cosmetic hash selects a colour for each piece index. The shape generator uses a different hash expression, so colour changes do not alter pieces, geometry, legality or scoring. Occupied cells retain their stored colour index. The colour-to-palette mapping changes only when the player selects another palette.
+## Visual system
 
-This deliberately interprets “randomly change during the game” as variety in incoming blocks. Arbitrary recolouring of occupied cells during active placement would undermine spatial recognition. There are no flashing colour cycles. Patterns add a second visual cue. Garden unlocks at five earned stars; stars require a completed round with at least three placements, so empty round exits do not earn cosmetics. Aurora is only a development reward-provider demonstration.
+| Role | Treatment |
+|---|---|
+| Brand | Plum ink `#211A2B`, coral tile `#FFA184`, and citron `#DFEF9D` for positive emphasis and line clears. |
+| Light and dark | Warm paper with aubergine text in light. Layered plum surfaces with cream text in dark. High contrast uses explicit board edges and cell symbols. |
+| Typography | Bricolage Grotesque ExtraBold for display, Instrument Sans for body and controls, optional Atkinson Hyperlegible, and Noto Sans Devanagari for Hindi and Marathi. Score readouts request tabular numerals. |
+| Spacing | Base steps 4, 8, 12, 16, 24, and 32 logical pixels. Screen inset is 16 on compact displays and 24 on wider screens. Cards use 20 radius, with 26 reserved for major panels. |
+| Board | Dark wells and coloured tiles share one frame; preview uses shape boundaries, + or ×, and a text status. The three tray slots stay aligned. Buttons use a minimum 52 height and flexible text. |
 
-## Custom motion choreography
+Theme and palette settings affect appearance only. Occupied tiles retain their color index, piece colours are generated separately from shapes, and game rules and records stay with the shared engine. [Theme tokens](../app/src/design.ts)
 
-| Trigger | Implementation | Input behaviour | Reduced/low-effects |
-|---|---|---|---|
-| Piece selection | Persistent border, selected label and tinted tray slot | Immediate, no timer | Same static cues |
-| Valid destination | Full-shape ghost with + marks; overlap uses × | Preview only | Same static cues |
-| Confirmed placement | Native-driven spring scale .82 → 1.06 → 1; damping 17, stiffness 270, mass .5 | State commits first | Immediate final cells |
-| Simultaneous line clear | Per-cleared-cell overlay, opacity to zero, scale 1 → .3 and rotation 0 → 12°, 240ms | Never waits for effect | Immediate clear + text gain |
-| Score increment | Small 1 → 1.04 → 1 spring lift in a stable score area | No blocking | Static updated score |
-| Press | .98 scale and opacity feedback | Normal button behaviour | Minimal press cue |
-| Dialog | Native fade when enabled | Explicit dismiss or confirmation | No transition |
+## Motion pass
 
-There are no perpetual particle emitters, shake loops, flashing celebrations or sound-only cues. Animation is written in `app/src/Board.tsx` and `app/App.tsx`, not a stock video or Lottie sequence. Native driver is used for transforms/opacity. Native frame pacing is still a physical-device test requirement.
+| Moment | Choreography | Reduced motion and low effects |
+|---|---|---|
+| Button press and release | Compress the label briefly over 76 ms. Release over 145 ms. The pressed treatment responds immediately. | Static pressed treatment. |
+| Screen arrival | 185 ms opacity and a 6 px rise. The live board uses opacity to keep drag coordinates stable. | Immediate destination. |
+| Tray selection | 3 px lift over 145 ms. The selection outline and label are immediate. | Outline and Selected label. |
+| Confirmed tile | 185 ms vertical compression, mild rebound, and settle. Tap and drag remain available. | Tile is placed immediately. |
+| Line clear | 390 ms wave driven by cell distance from the confirmed move. Each cleared cell lights briefly and contracts along the same row or column. One shared clock keeps simultaneous clears together. | Immediate board update and text with lines and points. |
+| Score | 275 ms, 4 px lift for a new confirmed scoring move. The value updates immediately. | Immediate value update. |
+| Result | 480 ms anticipation and settle as the citron tile locks into place. Round score, saved progress, personal record and match status are readable immediately. | Static lock-up. |
 
-## Typography and layout
+Use platform-native transform and opacity with hand-authored curves. Keep overlays outside the touch path. Skip move feedback on resume, replay, undo, or when receiving the same confirmed move again. Keep the timing values in `design.ts` and playback in the screen, board, and result components.
 
-Nunito Sans Regular / ExtraBold for English; optional Atkinson Hyperlegible for readability; Noto Sans Devanagari for Hindi/Marathi. Font files are bundled, avoiding a runtime font-network requirement. Body is 16 logical pixels at 100%, with 1.4 line height and dynamic reflow. General controls are at least 52 pixels high; board cells are smaller interactive game targets. A 320-wide screen preserves the board instead of shrinking it to fit all controls without scrolling.
+The motion pass applies staging, anticipation, follow-through, and custom easing. References include [OpenClassrooms](https://openclassrooms.com/en/courses/5625816-create-modern-css-animations/5794716-apply-the-12-principles-of-animation-to-the-web), [User Interface Wiki](https://www.userinterface.wiki/12-principles-of-animation), [CSS Animation](https://cssanimation.rocks/), [SVGator’s inspiration archive](https://www.svgator.com/blog/tag/inspirational/), and [Tubik’s mobile interaction case study](https://tubikstudio.com/works/watering-tracker).
 
-Replays sit side-by-side on sufficiently wide screens and stack on phones. Colours never encode a win, valid move or connection state without accompanying text/symbols.
+## Review checklist
+
+Play through first run, resume, preview and confirm, line clear, result, and rematch. Run `npm run test:motion` after exporting the web build to compare standard motion, system reduced motion, Low effects, and the app's motion switch. Set `BLOCK_LEAGUE_MOTION_CAPTURES` to a directory to record screenshots and video from that pass. Inspect narrow phones at 200% text, high contrast, and two browser clients on a private match. Confirm outcome legibility with sound off and complete the physical Android and iOS checks for touch, haptics, assistive technology, and frame pacing.

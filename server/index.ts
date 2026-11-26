@@ -1,6 +1,6 @@
 import http from "node:http";
 import { createHash } from "node:crypto";
-import { Service } from "./service.ts";
+import { RoomAccessError, Service } from "./service.ts";
 import { resolve, extname, sep } from "node:path";
 import { existsSync, readFileSync, statSync } from "node:fs";
 export function startServer({
@@ -79,6 +79,7 @@ export function startServer({
           JSON.stringify({
             ok: false,
             error: e instanceof Error ? e.message : "Request failed",
+            ...(e instanceof RoomAccessError && { code: "ROOM_UNAVAILABLE" }),
           }),
         );
       }

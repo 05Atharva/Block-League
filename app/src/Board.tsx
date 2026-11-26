@@ -1,5 +1,6 @@
 import React, {
   useCallback,
+  useEffect,
   useLayoutEffect,
   useMemo,
   useRef,
@@ -11,6 +12,7 @@ import {
   Pressable,
   Animated,
   PanResponder,
+  Platform,
   StyleSheet,
   AccessibilityInfo,
 } from "react-native";
@@ -20,6 +22,7 @@ import { themes, palettes, motionSpec } from "./design";
 import type { Settings } from "./design";
 import { animate } from "./motion";
 import { Txt } from "./ui";
+import { formatMessage, translate } from "./locales";
 type Props = {
   game: Game;
   settings: Settings;
@@ -102,10 +105,81 @@ function TrayPiece({
   drag: (x: number, y: number, active: boolean, s: number) => void;
   disabled?: boolean;
 }) {
+  const slot = useRef<React.ElementRef<typeof View>>(null);
+  const draggable = !disabled && index !== null;
+  useEffect(() => {
+    if (Platform.OS !== "web" || !draggable || !slot.current) return;
+    const element = slot.current as unknown as HTMLElement;
+    let pointer: {
+      id: number;
+      x: number;
+      y: number;
+      dragging: boolean;
+    } | null = null;
+    let suppressClick = false;
+    function down(event: PointerEvent) {
+      if (!event.isPrimary || event.button !== 0) return;
+      suppressClick = false;
+      pointer = {
+        id: event.pointerId,
+        x: event.clientX,
+        y: event.clientY,
+        dragging: false,
+      };
+    }
+    function move(event: PointerEvent) {
+      if (!pointer || pointer.id !== event.pointerId) return;
+      if (!pointer.dragging) {
+        if (
+          Math.hypot(event.clientX - pointer.x, event.clientY - pointer.y) < 7
+        )
+          return;
+        pointer.dragging = true;
+        suppressClick = true;
+        select(i);
+        element.setPointerCapture(event.pointerId);
+      }
+      drag(event.clientX, event.clientY, true, i);
+    }
+    function end(event: PointerEvent) {
+      if (event.type === "lostpointercapture" && event.target !== element)
+        return;
+      if (!pointer || pointer.id !== event.pointerId) return;
+      if (pointer.dragging) {
+        const canceled = event.type !== "pointerup";
+        drag(
+          canceled ? 0 : event.clientX,
+          canceled ? 0 : event.clientY,
+          false,
+          i,
+        );
+      }
+      pointer = null;
+    }
+    function click(event: MouseEvent) {
+      if (!suppressClick || !event.detail) return;
+      suppressClick = false;
+      event.stopPropagation();
+    }
+    element.addEventListener("pointerdown", down);
+    element.addEventListener("pointermove", move);
+    element.addEventListener("pointerup", end);
+    element.addEventListener("pointercancel", end);
+    element.addEventListener("lostpointercapture", end);
+    element.addEventListener("click", click, true);
+    return () => {
+      element.removeEventListener("pointerdown", down);
+      element.removeEventListener("pointermove", move);
+      element.removeEventListener("pointerup", end);
+      element.removeEventListener("pointercancel", end);
+      element.removeEventListener("lostpointercapture", end);
+      element.removeEventListener("click", click, true);
+      if (pointer?.dragging) drag(0, 0, false, i);
+    };
+  }, [drag, draggable, i, select]);
   const pan = useMemo(
     () =>
       PanResponder.create({
-        onStartShouldSetPanResponder: () => !disabled,
         onMoveShouldSetPanResponder: (_, g) =>
           !disabled && Math.abs(g.dx) + Math.abs(g.dy) > 6,
         onPanResponderGrant: () => select(i),
@@ -128,69 +202,97 @@ function TrayPiece({
     return () => animation.stop();
   }, [chosen, lift, motion]);
   const t = themes[settings.theme];
+  const nativeDrag = Platform.OS !== "web" && draggable;
   return (
-    <Pressable
-      testID={`piece-${i}`}
-      accessibilityRole="button"
-      accessibilityLabel={`Piece ${i + 1}${index === null ? ", used" : `, ${piece(game.seed, index, game.beginner).length} cells`}`}
-      accessibilityState={{
-        selected: selected === i,
-        disabled: disabled || index === null,
+    <View
+      ref={slot}
+      style={{
+        flex: 1,
+        minWidth: 0,
+        ...(Platform.OS === "web" && draggable
+          ? { touchAction: "none" as const }
+          : {}),
       }}
-      disabled={disabled || index === null}
-      onPress={() => select(i)}
-      {...(index !== null ? pan.panHandlers : {})}
-      style={[
-        styles.slot,
-        {
-          borderColor: chosen ? t.brand : t.border,
-          backgroundColor: chosen ? t.soft : t.surface,
-          opacity: index === null ? 0.68 : 1,
-          borderWidth: chosen ? 2 : 1,
-        },
-      ]}
+      {...(nativeDrag ? pan.panHandlers : {})}
+      onMoveShouldSetResponderCapture={
+        nativeDrag ? pan.panHandlers.onMoveShouldSetResponder : undefined
+      }
     >
-      {index === null ? (
-        <Text style={{ color: t.muted }}>✓</Text>
-      ) : (
-        <Animated.View
-          pointerEvents="none"
-          style={{
-            transform: motion
-              ? [
-                  {
-                    translateY: lift.interpolate({
-                      inputRange: [0, 1],
-                      outputRange: [0, -3],
-                    }),
-                  },
-                ]
-              : [],
-          }}
-        >
-          <MiniPiece
-            seed={game.seed}
-            index={index}
-            beginner={game.beginner}
-            settings={settings}
-            size={16}
-          />
-        </Animated.View>
-      )}
-      {!chosen && index !== null ? null : (
-        <Txt
-          size={11}
-          bold
-          style={{
-            color: chosen ? t.brand : t.muted,
-            marginTop: 4,
-            textAlign: "center",
-          }}
-        >
-          {index === null ? "Placed" : "Selected"}
-        </Txt>
-      )}
-    </Pressable>
+      <Pressable
+        testID={`piece-${i}`}
+        accessibilityRole="button"
+        accessibilityLabel={
+          index === null
+            ? formatMessage("Piece {number}, used", settings.language, {
+                number: i + 1,
+              })
+            : formatMessage(
+                "Piece {number}, {count} cells",
+                settings.language,
+                {
+                  number: i + 1,
+                  count: piece(game.seed, index, game.beginner).length,
+                },
+              )
+        }
+        accessibilityState={{
+          selected: selected === i,
+          disabled: disabled || index === null,
+        }}
+        disabled={disabled || index === null}
+        onPress={() => select(i)}
+        style={[
+          styles.slot,
+          {
+            borderColor: chosen ? t.brand : t.border,
+            backgroundColor: chosen ? t.soft : t.surface,
+            opacity: index === null ? 0.68 : 1,
+            borderWidth: chosen ? 2 : 1,
+          },
+        ]}
+      >
+        {index === null ? (
+          <Text style={{ color: t.muted }}>✓</Text>
+        ) : (
+          <Animated.View
+            pointerEvents="none"
+            style={{
+              transform: motion
+                ? [
+                    {
+                      translateY: lift.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [0, -3],
+                      }),
+                    },
+                  ]
+                : [],
+            }}
+          >
+            <MiniPiece
+              seed={game.seed}
+              index={index}
+              beginner={game.beginner}
+              settings={settings}
+              size={16}
+            />
+          </Animated.View>
+        )}
+        {!chosen && index !== null ? null : (
+          <Txt
+            size={11}
+            bold
+            style={{
+              color: chosen ? t.brand : t.muted,
+              marginTop: 4,
+              textAlign: "center",
+            }}
+          >
+            {index === null ? "Placed" : "Selected"}
+          </Txt>
+        )}
+      </Pressable>
+    </View>
   );
 }
 export function Board({
@@ -257,9 +359,16 @@ export function Board({
   const valid = anchor && fits(game, selected, anchor[0], anchor[1]);
   const select = useCallback(
     (slot: number) => {
-      board.current?.measureInWindow(
-        (x, y, w) => (bounds.current = { x, y, w }),
-      );
+      if (Platform.OS === "web" && board.current) {
+        const rect = (
+          board.current as unknown as HTMLElement
+        ).getBoundingClientRect();
+        bounds.current = { x: rect.left, y: rect.top, w: rect.width };
+      } else {
+        board.current?.measureInWindow(
+          (x, y, w) => (bounds.current = { x, y, w }),
+        );
+      }
       setSelected(slot);
       setAnchor(null);
     },
@@ -288,7 +397,7 @@ export function Board({
       <View
         ref={board}
         testID="game-board"
-        accessibilityLabel="8 by 8 puzzle board"
+        accessibilityLabel={translate("8 by 8 puzzle board", settings.language)}
         onLayout={(e) => {
           setWidth(e.nativeEvent.layout.width);
           board.current?.measureInWindow(
@@ -323,11 +432,31 @@ export function Board({
                   testID={`cell-${r}-${c}`}
                   disabled={disabled || small}
                   accessibilityRole="button"
-                  accessibilityLabel={`Row ${r + 1}, column ${c + 1}, ${v ? "occupied" : "empty"}${ghost ? (valid ? ", fits" : ", does not fit") : ""}`}
+                  accessibilityLabel={
+                    formatMessage(
+                      "Row {row}, column {column}, {status}",
+                      settings.language,
+                      {
+                        row: r + 1,
+                        column: c + 1,
+                        status: translate(
+                          v ? "occupied" : "empty",
+                          settings.language,
+                        ),
+                      },
+                    ) +
+                    (ghost
+                      ? ", " +
+                        translate(
+                          valid ? "fits" : "does not fit",
+                          settings.language,
+                        )
+                      : "")
+                  }
                   onPress={() => {
                     if (selected < 0)
                       AccessibilityInfo.announceForAccessibility(
-                        "Select a piece first",
+                        translate("Select a piece first", settings.language),
                       );
                     setAnchor([r, c]);
                   }}
@@ -471,6 +600,7 @@ const styles = StyleSheet.create({
   },
   slot: {
     flex: 1,
+    minWidth: 0,
     minHeight: 76,
     borderRadius: 13,
     alignItems: "center",

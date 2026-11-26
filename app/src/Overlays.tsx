@@ -50,6 +50,7 @@ export function Overlay({
   children,
   drawer = false,
   dismissBackdrop = true,
+  opaque = false,
   closeLabel,
   headingDetail,
 }: {
@@ -58,6 +59,7 @@ export function Overlay({
   children: React.ReactNode;
   drawer?: boolean;
   dismissBackdrop?: boolean;
+  opaque?: boolean;
   closeLabel?: string;
   headingDetail?: string;
 }) {
@@ -84,6 +86,7 @@ export function Overlay({
       <View
         style={[
           styles.veil,
+          opaque && { backgroundColor: t.bg },
           {
             paddingTop: Math.max(space.lg, insets.top),
             paddingBottom: drawer

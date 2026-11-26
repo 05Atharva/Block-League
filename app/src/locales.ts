@@ -1,5 +1,116 @@
 /** Reviewed-by-code translations for core menus and learning. Native-speaker QA is still required. */
 const words: Record<string, [string, string]> = {
+  Settings: ["सेटिंग", "सेटिंग्ज"],
+  "8 by 8 puzzle board": ["8 गुणा 8 का पहेली बोर्ड", "8 बाय 8 चा कोडेफळा"],
+  "Piece {number}, used": [
+    "टुकड़ा {number}, इस्तेमाल हो चुका है",
+    "तुकडा {number}, वापरला आहे",
+  ],
+  "Piece {number}, {count} cells": [
+    "टुकड़ा {number}, {count} खाने",
+    "तुकडा {number}, {count} चौकटी",
+  ],
+  "Row {row}, column {column}, {status}": [
+    "पंक्ति {row}, स्तंभ {column}, {status}",
+    "ओळ {row}, स्तंभ {column}, {status}",
+  ],
+  empty: ["खाली", "रिकामी"],
+  occupied: ["भरा हुआ", "भरलेली"],
+  fits: ["सही बैठता है", "बसतो"],
+  "does not fit": ["सही नहीं बैठता", "बसत नाही"],
+  "Select a piece first": ["पहले एक टुकड़ा चुनें", "आधी एक तुकडा निवडा"],
+  "No pieces fit": ["कोई टुकड़ा नहीं बैठता", "कोणताही तुकडा बसत नाही"],
+  "Finished by player": ["खिलाड़ी ने समाप्त किया", "खेळाडूने संपवले"],
+  "Placement limit": ["चालों की सीमा", "चालींची मर्यादा"],
+  "Match window ended": ["मुकाबले का समय समाप्त", "सामन्याची वेळ संपली"],
+  "Reconnect grace expired": [
+    "फिर जुड़ने का समय समाप्त",
+    "पुन्हा जोडण्याची वेळ संपली",
+  ],
+  "Private social play enabled": [
+    "निजी सामाजिक खेल चालू है",
+    "खाजगी सामाजिक खेळ सुरू आहे",
+  ],
+  "{score} local points": ["{score} स्थानीय अंक", "{score} स्थानिक गुण"],
+  "{count}/30 placed · {state}": [
+    "{count}/30 चालें · {state}",
+    "{count}/30 चाली · {state}",
+  ],
+  "{count} seconds left": ["{count} सेकंड बाकी", "{count} सेकंद बाकी"],
+  "Finish by {date}": ["{date} तक पूरा करें", "{date} पर्यंत पूर्ण करा"],
+  Finished: ["पूरा हुआ", "पूर्ण"],
+  Here: ["जुड़ा है", "जोडलेले"],
+  Away: ["दूर है", "दूर"],
+  "Result final": ["अंतिम नतीजा", "अंतिम निकाल"],
+  "Official result pending": [
+    "आधिकारिक नतीजा बाकी है",
+    "अधिकृत निकाल बाकी आहे",
+  ],
+  "Review invitation": ["निमंत्रण देखें", "निमंत्रण पाहा"],
+  "Private match details": ["निजी मुकाबले का विवरण", "खाजगी सामन्याचा तपशील"],
+  "Enter the eight-character room code.": [
+    "कमरे का आठ अक्षरों वाला कोड डालें।",
+    "खोलीचा आठ अक्षरी संकेतांक टाका.",
+  ],
+  "Live · 15 minutes": ["लाइव · 15 मिनट", "थेट · 15 मिनिटे"],
+  "Async · 24 hours": ["अपने समय पर · 24 घंटे", "आपल्या वेळेनुसार · 24 तास"],
+  "{mode}. Up to {count} placements per player. This invitation can be used until {date}.":
+    [
+      "{mode}। प्रति खिलाड़ी अधिकतम {count} चालें। यह निमंत्रण {date} तक इस्तेमाल किया जा सकता है।",
+      "{mode}. प्रत्येक खेळाडूसाठी जास्तीत जास्त {count} चाली. हे निमंत्रण {date} पर्यंत वापरता येईल.",
+    ],
+  "This room is no longer available": [
+    "यह कमरा अब उपलब्ध नहीं है",
+    "ही खोली आता उपलब्ध नाही",
+  ],
+  "Ask the host for a current invitation or check your other matches.": [
+    "मेज़बान से नया निमंत्रण माँगें या अपने दूसरे मुकाबले देखें।",
+    "यजमानाकडून नवीन निमंत्रण घ्या किंवा तुमचे इतर सामने पाहा.",
+  ],
+  "Back to matches": ["मुकाबलों पर लौटें", "सामन्यांकडे परत जा"],
+  "Registration is closed.": [
+    "पंजीकरण बंद हो चुका है।",
+    "नोंदणी बंद झाली आहे.",
+  ],
+  "Registration closes {date}.": [
+    "पंजीकरण {date} को बंद होगा।",
+    "नोंदणी {date} रोजी बंद होईल.",
+  ],
+  "Fixtures allow {count} hours from scheduling. No mid-season substitutions. Unplayed attempts score zero.":
+    [
+      "मुकाबला तय होने से {count} घंटे मिलते हैं। सीज़न के बीच खिलाड़ी बदल नहीं सकते। न खेले गए प्रयास के लिए शून्य अंक मिलेंगे।",
+      "सामना ठरल्यापासून {count} तास मिळतात. हंगामात खेळाडू बदलता येत नाहीत. न खेळलेल्या प्रयत्नाला शून्य गुण मिळतात.",
+    ],
+  "Invitation: {code}": ["निमंत्रण कोड: {code}", "निमंत्रण संकेतांक: {code}"],
+  "Up to {count} characters": [
+    "अधिकतम {count} अक्षर",
+    "जास्तीत जास्त {count} अक्षरे",
+  ],
+  "{count} placed": ["{count} टुकड़े रखे", "{count} तुकडे ठेवले"],
+  "1 placed": ["1 टुकड़ा रखा", "1 तुकडा ठेवला"],
+  "{count} line": ["{count} पंक्ति", "{count} ओळ"],
+  "{count} lines": ["{count} पंक्तियाँ", "{count} ओळी"],
+  "{count} line cleared": ["{count} पंक्ति साफ़ हुई", "{count} ओळ साफ झाली"],
+  "{count} lines cleared": [
+    "{count} पंक्तियाँ साफ़ हुईं",
+    "{count} ओळी साफ झाल्या",
+  ],
+  "{count} line cleared · +{points}": [
+    "{count} पंक्ति साफ़ हुई · +{points}",
+    "{count} ओळ साफ झाली · +{points}",
+  ],
+  "{count} lines cleared · +{points}": [
+    "{count} पंक्तियाँ साफ़ हुईं · +{points}",
+    "{count} ओळी साफ झाल्या · +{points}",
+  ],
+  "{count} clears in a row": [
+    "लगातार {count} बार साफ़ किया",
+    "सलग {count} वेळा साफ केले",
+  ],
+  "✓ Fits at row {row}, column {column}": [
+    "✓ पंक्ति {row}, स्तंभ {column} में सही बैठता है",
+    "✓ ओळ {row}, स्तंभ {column} येथे बसतो",
+  ],
   Play: ["खेलें", "खेळा"],
   Club: ["क्लब", "क्लब"],
   You: ["आप", "तुम्ही"],
@@ -402,4 +513,14 @@ export function translate(text: string, lang: "en" | "hi" | "mr") {
   if (suffix)
     return (words[suffix[1]]?.[lang === "hi" ? 0 : 1] || suffix[1]) + suffix[2];
   return text;
+}
+
+export function formatMessage(
+  template: string,
+  lang: "en" | "hi" | "mr",
+  values: Record<string, string | number>,
+) {
+  return translate(template, lang).replace(/\{(\w+)\}/g, (_, key: string) =>
+    String(values[key] ?? ""),
+  );
 }

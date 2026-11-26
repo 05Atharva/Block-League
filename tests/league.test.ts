@@ -8,13 +8,16 @@ import {
   needsDecider,
   playoffPairs,
 } from "../shared/competition.ts";
-function setup(size: number) {
+function setup(size: number, family = false) {
   const s = new Service();
   const users: any[] = [],
     teams: any[] = [];
   for (let i = 0; i < size; i++) {
     const members = Array.from({ length: 3 }, (_, j) =>
-      s.dispatch("register", { alias: `Team${i}Player${j}`, age: "18-24" }),
+      s.dispatch("register", {
+        alias: `Team${i}Player${j}`,
+        age: family && i === 0 && j === 1 ? "7-12" : "18-24",
+      }),
     );
     users.push(...members);
     const t = s.dispatch(
@@ -23,6 +26,14 @@ function setup(size: number) {
       members[0].token,
     );
     for (const m of members.slice(1)) {
+      if (m.user.age === "7-12") {
+        assert.throws(
+          () => s.dispatch("team.request", { code: t.code }, m.token),
+          /guardian/,
+        );
+        s.dispatch("guardian.setup", { pin: "873529" }, m.token);
+        s.dispatch("guardian.update", { pin: "873529", social: true }, m.token);
+      }
       s.dispatch("team.request", { code: t.code }, m.token);
       s.dispatch(
         "team.approve",
@@ -47,6 +58,27 @@ function setup(size: number) {
   s.dispatch("league.start", { id: l.id }, owner.token);
   return { s, users, teams, owner, l };
 }
+test("guardian-approved family member can enter an invited league fixture, and revocation blocks active access", () => {
+  const { s, users, l } = setup(4, true);
+  const child = users[1];
+  const view = s.dispatch("league.get", { id: l.id }, child.token);
+  assert.ok(view.myRooms.length > 0);
+  const code = view.myRooms[0];
+  assert.equal(s.dispatch("room.get", { code }, child.token).kind, "fixture");
+  const outsider = s.dispatch("register", {
+    alias: "Outside family",
+    age: "25-44",
+  });
+  assert.throws(
+    () => s.dispatch("league.get", { id: l.id }, outsider.token),
+    /private/,
+  );
+  s.dispatch("guardian.update", { pin: "873529", social: false }, child.token);
+  assert.throws(
+    () => s.dispatch("room.get", { code }, child.token),
+    /guardian/,
+  );
+});
 function playRoom(
   s: Service,
   code: string,

@@ -40,6 +40,55 @@ test("same pieces, independent boards, score replay and hidden opponent moves", 
   assert.equal(r.replays.length, 2);
   assert.equal(r.result.winner, a.user.id);
 });
+test("invitation preview reveals only terms and never occupies a seat", () => {
+  const { s, a, b, advance } = setup();
+  const room = s.dispatch("room.create", { kind: "async" }, a.token);
+  const invite = s.dispatch(
+    "room.preview",
+    { code: room.code.toLowerCase() },
+    b.token,
+  );
+  assert.deepEqual(invite, {
+    code: room.code,
+    kind: "async",
+    expiresAt: room.deadline,
+    placements: 30,
+  });
+  assert.equal(
+    s.dispatch("room.get", { code: room.code }, a.token).players.length,
+    1,
+  );
+  const child = s.dispatch("register", { alias: "Child tester", age: "7-12" });
+  assert.throws(
+    () => s.dispatch("room.preview", { code: room.code }, child.token),
+    /guardian/,
+  );
+  advance(86400001);
+  assert.throws(
+    () => s.dispatch("room.preview", { code: room.code }, b.token),
+    /expired/,
+  );
+  assert.throws(
+    () => s.dispatch("room.join", { code: invite.code }, b.token),
+    /expired/,
+  );
+});
+
+test("season names are preserved within the shared limit and rejected above it", () => {
+  const { s, a } = setup();
+  const name = "Mobile QA Six Hour Season";
+  const league = s.dispatch(
+    "league.create",
+    { name, size: 4, windowHours: 6 },
+    a.token,
+  );
+  assert.equal(league.name, name);
+  assert.throws(
+    () =>
+      s.dispatch("league.create", { name: "x".repeat(41), size: 4 }, a.token),
+    /too long/,
+  );
+});
 test("idempotent move retry and final result; action ID collision rejected", () => {
   const { s, a, b } = setup();
   let r = match(s, a, b);

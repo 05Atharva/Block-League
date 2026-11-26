@@ -26,6 +26,7 @@ import {
   needsDecider,
   REACTIONS,
   adEligible,
+  LEAGUE_NAME_LIMIT,
 } from "../shared/competition.ts";
 const id = () => randomBytes(16).toString("hex"),
   code = () => randomBytes(4).toString("hex").toUpperCase();
@@ -39,6 +40,7 @@ const clean = (s: unknown, max = 24) =>
     .replace(/[<>\x00-\x1f]/g, "")
     .slice(0, max);
 const ages = ["7-12", "13-17", "18-24", "25-44", "45-65", "65+", "unknown"];
+export class RoomAccessError extends Error {}
 type User = {
   id: string;
   alias: string;
@@ -175,10 +177,22 @@ export class Service {
   }
   room(u: User, c: string) {
     const r = this.db.rooms[c];
-    assert(r, "Room not found or code expired");
+    if (!r) throw new RoomAccessError("Room not found or code expired");
+    if (!r.players.some((p) => p.id === u.id))
+      throw new RoomAccessError("This room is private");
+    if (r.status !== "final" && u.age === "7-12" && !u.social)
+      throw new RoomAccessError("A guardian must enable private social play");
+    return r;
+  }
+  waitingRoom(u: User, invite: unknown) {
+    const r = this.db.rooms[String(invite).trim().toUpperCase()];
     assert(
-      r.players.some((p) => p.id === u.id),
-      "This room is private",
+      r && r.deadline > this.clock() && r.status === "waiting",
+      "Room code expired, started or not found",
+    );
+    assert(
+      r.players.length < 2 || r.players.some((seat) => seat.id === u.id),
+      "Room is full",
     );
     return r;
   }
@@ -563,16 +577,23 @@ export class Service {
             out = this.snapshot(u, r);
           }
           break;
+        case "room.preview":
+          this.social(u);
+          {
+            const r = this.waitingRoom(u, d.code);
+            out = {
+              code: r.code,
+              kind: r.kind,
+              expiresAt: r.deadline,
+              placements: r.players[0].game.limit,
+            };
+          }
+          break;
         case "room.join":
           this.social(u);
           {
-            const r = this.db.rooms[String(d.code).toUpperCase()];
-            assert(
-              r && r.deadline > this.clock() && r.status === "waiting",
-              "Room code expired, started or not found",
-            );
+            const r = this.waitingRoom(u, d.code);
             if (!r.players.some((p) => p.id === u.id)) {
-              assert(r.players.length < 2, "Room is full");
               r.players.push({
                 id: u.id,
                 ready: false,
@@ -823,11 +844,13 @@ export class Service {
         case "league.create":
           this.social(u);
           assert([4, 8].includes(d.size), "Choose four or eight teams");
-          assert(clean(d.name).length >= 2, "Enter a league name");
           {
+            const name = clean(d.name, LEAGUE_NAME_LIMIT + 1);
+            assert(name.length >= 2, "Enter a league name");
+            assert(name.length <= LEAGUE_NAME_LIMIT, "Season name is too long");
             const l: League = {
               id: id(),
-              name: clean(d.name),
+              name,
               code: code(),
               owner: u.id,
               size: d.size,

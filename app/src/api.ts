@@ -1,4 +1,12 @@
 export class NetworkError extends Error {}
+export class RequestError extends Error {
+  constructor(
+    message: string,
+    readonly code?: string,
+  ) {
+    super(message);
+  }
+}
 
 export async function request(
   base: string,
@@ -28,6 +36,7 @@ export async function request(
   } finally {
     clearTimeout(timeout);
   }
-  if (!json.ok) throw Error(json.error || "Request failed");
+  if (!json.ok)
+    throw new RequestError(json.error || "Request failed", json.code);
   return json.result;
 }

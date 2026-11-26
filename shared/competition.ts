@@ -1,3 +1,5 @@
+export const LEAGUE_NAME_LIMIT = 40;
+
 export type Result = {
   a: string;
   b: string;

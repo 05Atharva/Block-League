@@ -91,6 +91,7 @@ export function Button({
         {
           minHeight: 52,
           maxWidth: "100%",
+          minWidth: 0,
           flexShrink: 1,
           paddingHorizontal: space.lg,
           paddingVertical: space.md,
@@ -108,6 +109,7 @@ export function Button({
       <Animated.View
         style={{
           maxWidth: "100%",
+          minWidth: 0,
           flexDirection: "row",
           alignItems: "center",
           gap: space.sm,

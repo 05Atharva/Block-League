@@ -137,6 +137,12 @@ try {
     .last()
     .click();
   await page.getByText("Pass the phone.", { exact: true }).waitFor();
+  assert.equal(await page.getByTestId("game-board").count(), 0);
+  assert.equal(
+    await page.getByText("LOCAL · PLAYER 1", { exact: true }).count(),
+    0,
+  );
+  await page.screenshot({ path: join(temp, "family-handoff.png") });
   await page
     .getByRole("button", { name: "Player 2 — I’m ready", exact: true })
     .click();
@@ -234,6 +240,16 @@ try {
     .click();
   await guest.getByLabel("Invitation code").fill(code);
   await guest
+    .getByRole("button", { name: "Review invitation", exact: true })
+    .click();
+  const invitation = guest.getByRole("dialog", {
+    name: "Private match details",
+  });
+  assert.match(
+    await invitation.innerText(),
+    /15 minutes.*30 placements.*until/s,
+  );
+  await invitation
     .getByRole("button", { name: "Join private room", exact: true })
     .click();
   await page

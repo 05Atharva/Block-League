@@ -1,0 +1,213 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import { Service } from "../server/service.ts";
+import { legalMoves } from "../shared/engine.ts";
+import {
+  roundRobin,
+  standings,
+  needsDecider,
+  playoffPairs,
+} from "../shared/competition.ts";
+function setup(size: number) {
+  const s = new Service();
+  const users: any[] = [],
+    teams: any[] = [];
+  for (let i = 0; i < size; i++) {
+    const members = Array.from({ length: 3 }, (_, j) =>
+      s.dispatch("register", { alias: `Team${i}Player${j}`, age: "18-24" }),
+    );
+    users.push(...members);
+    const t = s.dispatch(
+      "team.create",
+      { name: `Team ${i}` },
+      members[0].token,
+    );
+    for (const m of members.slice(1)) {
+      s.dispatch("team.request", { code: t.code }, m.token);
+      s.dispatch(
+        "team.approve",
+        { id: t.id, member: m.user.id },
+        members[0].token,
+      );
+    }
+    teams.push(t);
+  }
+  const owner = users[0],
+    l = s.dispatch(
+      "league.create",
+      { name: "Test season", size, windowHours: 24 },
+      owner.token,
+    );
+  for (let i = 0; i < size; i++)
+    s.dispatch(
+      "league.enter",
+      { code: l.code, team: teams[i].id },
+      users[i * 3].token,
+    );
+  s.dispatch("league.start", { id: l.id }, owner.token);
+  return { s, users, teams, owner, l };
+}
+function playRoom(
+  s: Service,
+  code: string,
+  users: any[],
+  winSeat: number | null,
+) {
+  let r = s.db.rooms[code];
+  for (let i = 0; i < 2; i++) {
+    const p = r.players[i],
+      u = users.find((u) => u.user.id === p.id);
+    if (i === winSeat) {
+      const m = legalMoves(p.game)[0];
+      s.dispatch(
+        "room.move",
+        { code, move: { ...m, seq: 0, id: "move-" + code } },
+        u.token,
+      );
+    }
+    s.dispatch("room.finish", { code }, u.token);
+  }
+}
+test("round robin and playoff topology match 4 / 8 team formats", () => {
+  assert.equal(roundRobin(["a", "b", "c", "d"]).length, 6);
+  assert.equal(
+    roundRobin(Array.from({ length: 8 }, (_, i) => String(i))).length,
+    28,
+  );
+  assert.deepEqual(playoffPairs(["a", "b", "c", "d"]), {
+    qualifier1: ["a", "b"],
+    eliminator: ["c", "d"],
+  });
+});
+test("published standings prefer head-to-head then individual duel wins", () => {
+  const r = standings(
+    ["a", "b", "c"],
+    [
+      { a: "a", b: "b", sa: 4, sb: 2, aw: 2, bw: 1 },
+      { a: "b", b: "c", sa: 6, sb: 0, aw: 3, bw: 0 },
+      { a: "c", b: "a", sa: 4, sb: 2, aw: 2, bw: 1 },
+    ],
+  );
+  assert.equal(r[0].id, "b");
+  assert.equal(r[0].points, 2);
+  assert.equal(r[0].duelWins, 4);
+  assert.equal(needsDecider(r[1], r[2]), false);
+});
+test("captain approval, exact roster size, duplicates, privacy and roster lock", () => {
+  const { s, users, teams, l } = setup(4);
+  assert.throws(
+    () =>
+      s.dispatch(
+        "team.remove",
+        { id: teams[0].id, member: users[1].user.id },
+        users[0].token,
+      ),
+    /locked/,
+  );
+  const outsider = s.dispatch("register", { alias: "Outsider", age: "25-44" });
+  assert.throws(
+    () => s.dispatch("league.get", { id: l.id }, outsider.token),
+    /private/,
+  );
+  assert.throws(() =>
+    s.dispatch(
+      "team.approve",
+      { id: teams[0].id, member: outsider.user.id },
+      users[3].token,
+    ),
+  );
+});
+for (const size of [4, 8])
+  test(`${size}-team season advances from real validated duels to champion`, () => {
+    const { s, users, teams, owner, l } = setup(size);
+    let safety = 0;
+    while (s.db.leagues[l.id].status !== "complete" && safety++ < 100) {
+      const league = s.db.leagues[l.id];
+      const open = league.fixtures.filter((f) => f.winner === undefined);
+      assert.ok(open.length > 0);
+      for (const f of open) {
+        const ai = teams.findIndex((t) => t.id === f.a),
+          bi = teams.findIndex((t) => t.id === f.b);
+        for (const c of [...f.rooms])
+          if (s.db.rooms[c].status !== "final")
+            playRoom(s, c, users, ai < bi ? 0 : 1);
+      }
+      s.dispatch("league.get", { id: l.id }, owner.token);
+    }
+    assert.equal(s.db.leagues[l.id].status, "complete");
+    assert.equal(s.db.leagues[l.id].champion, teams[0].id);
+    assert.ok(s.db.users[owner.user.id].badges.includes("league-champion"));
+    const phases = s.db.leagues[l.id].fixtures.map((f) => f.phase);
+    assert.ok(phases.includes("final"));
+    if (size === 8) {
+      assert.ok(phases.includes("qualifier-1"));
+      assert.ok(phases.includes("eliminator"));
+      assert.ok(phases.includes("qualifier-2"));
+    }
+  });
+test("multi-team qualification tie schedules all paired captain deciders; no hidden seeding", () => {
+  const { s, users, teams, owner, l } = setup(4);
+  for (const f of [...s.db.leagues[l.id].fixtures])
+    for (const c of f.rooms) playRoom(s, c, users, null);
+  let view = s.dispatch("league.get", { id: l.id }, owner.token);
+  assert.equal(view.status, "qualification-tied");
+  assert.equal(view.deciders.length, 6);
+  view = s.dispatch("league.deciders", { id: l.id }, owner.token);
+  assert.equal(view.status, "deciding");
+  for (const f of view.fixtures.filter((f: any) =>
+    f.phase.startsWith("qualification-decider"),
+  )) {
+    const ai = teams.findIndex((t) => t.id === f.a),
+      bi = teams.findIndex((t) => t.id === f.b);
+    playRoom(s, f.rooms[0], users, ai < bi ? 0 : 1);
+  }
+  view = s.dispatch("league.resolve", { id: l.id }, owner.token);
+  assert.equal(view.status, "playing");
+  assert.deepEqual(
+    view.seeds,
+    teams.map((t) => t.id),
+  );
+  assert.ok(view.fixtures.some((f: any) => f.phase === "final"));
+});
+test("tied knockout schedules a fresh captain decider instead of inventing a winner", () => {
+  const { s, users, owner, l } = setup(4);
+  const league = s.db.leagues[l.id];
+  s.seedPlayoffs(league, league.teams);
+  const final = league.fixtures.find((f) => f.phase === "final")!;
+  for (const c of [...final.rooms]) playRoom(s, c, users, null);
+  s.dispatch("league.get", { id: l.id }, owner.token);
+  assert.equal(final.winner, undefined);
+  assert.equal(final.rooms.length, 4);
+  assert.notEqual(
+    s.db.rooms[final.rooms[0]].seed,
+    s.db.rooms[final.rooms[3]].seed,
+  );
+});
+test("head-to-head subgroup paths do not collapse distinct tie groups", () => {
+  const results: any[] = [];
+  const win = (a: string, b: string) =>
+      results.push({ a, b, sa: 6, sb: 0, aw: 3, bw: 0 }),
+    draw = (a: string, b: string) =>
+      results.push({ a, b, sa: 3, sb: 3, aw: 1, bw: 1 });
+  draw("a", "b");
+  draw("c", "d");
+  for (const a of ["a", "b"]) for (const b of ["c", "d"]) win(a, b);
+  for (const x of ["e", "f"]) {
+    for (const y of ["a", "b"]) win(x, y);
+    for (const y of ["c", "d"]) win(y, x);
+    win(x, "g");
+  }
+  draw("e", "f");
+  for (const x of ["a", "b", "c", "d"]) win("g", x);
+  const table = standings(["a", "b", "c", "d", "e", "f", "g"], results),
+    a = table.find((x) => x.id === "a")!,
+    b = table.find((x) => x.id === "b")!,
+    c = table.find((x) => x.id === "c")!,
+    d = table.find((x) => x.id === "d")!;
+  assert.equal(a.points, c.points);
+  assert.equal(a.h2h, c.h2h);
+  assert.equal(a.duelWins, c.duelWins);
+  assert.equal(needsDecider(a, b), true);
+  assert.equal(needsDecider(b, c), false);
+  assert.equal(needsDecider(c, d), true);
+});

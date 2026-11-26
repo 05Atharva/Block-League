@@ -67,6 +67,7 @@ type Room = {
   status: "waiting" | "playing" | "final";
   players: Seat[];
   result?: { winner: string | null; scores: number[] };
+  finishedAt?: number;
   reactions: { by: string; userId: string; text: string; at: number }[];
   fixture?: string;
 };
@@ -185,6 +186,7 @@ export class Service {
     if (r.status === "final") return;
     if (r.players.length === 2 && r.players.every((p) => p.game.done)) {
       r.status = "final";
+      r.finishedAt = this.clock();
       const [a, b] = r.players;
       r.result = {
         winner:
@@ -213,6 +215,7 @@ export class Service {
         if (r.players.length === 2) this.settle(r);
         else {
           r.status = "final";
+          r.finishedAt = now;
           r.result = {
             winner: null,
             scores: r.players.map((p) => p.game.score),
@@ -654,6 +657,49 @@ export class Service {
             out = this.snapshot(u, r);
           }
           break;
+        case "room.submitAsync": {
+          this.social(u);
+          const r = this.room(u, d.code);
+          const p = r.players.find((seat) => seat.id === u.id)!;
+          assert(
+            r.kind === "async",
+            "Offline submission is only available for private async challenges",
+          );
+          assert(
+            Array.isArray(d.moves) && d.moves.length <= 30,
+            "Invalid offline moves",
+          );
+          assert(typeof d.finish === "boolean", "Invalid offline finish flag");
+          let game = p.game;
+          const open =
+            r.status === "playing" &&
+            this.clock() >= r.starts &&
+            this.clock() < r.deadline;
+          for (const move of d.moves as Move[]) {
+            assert(move && typeof move === "object", "Invalid offline move");
+            const previous = game.moves.find((entry) => entry.id === move.id);
+            if (previous) {
+              assert(
+                previous.seq === move.seq &&
+                  previous.slot === move.slot &&
+                  previous.row === move.row &&
+                  previous.col === move.col,
+                "Action ID already used with a different move",
+              );
+              continue;
+            }
+            assert(open, "This challenge is no longer accepting offline moves");
+            game = place(game, move);
+          }
+          if (d.finish && !game.done) {
+            assert(open, "This challenge is no longer accepting offline moves");
+            game = finish(game);
+          }
+          p.game = game;
+          this.settle(r);
+          out = this.snapshot(u, r);
+          break;
+        }
         case "room.react":
           {
             const r = this.room(u, d.code);
@@ -695,6 +741,10 @@ export class Service {
               status: r.status,
               kind: r.kind,
               deadline: r.deadline,
+              finishedAt: r.finishedAt,
+              ownDone: r.players.some(
+                (seat) => seat.id === u.id && seat.game.done,
+              ),
             }));
           break;
         case "team.create":

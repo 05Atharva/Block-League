@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { Service } from "../server/service.ts";
-import { legalMoves, replay } from "../shared/engine.ts";
+import { legalMoves, place, replay } from "../shared/engine.ts";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -64,6 +64,100 @@ test("idempotent move retry and final result; action ID collision rejected", () 
   const result = JSON.stringify(s.db.rooms[r.code].result);
   s.tick();
   assert.equal(JSON.stringify(s.db.rooms[r.code].result), result);
+});
+test("offline async batches commit atomically, recover lost acknowledgements, and keep scores authoritative", () => {
+  const { s, a, b, advance } = setup();
+  const room = match(s, a, b, "async");
+  const first = { ...legalMoves(room.game)[0], seq: 0, id: "queued-1" };
+  const afterFirst = place(room.game, first);
+  const second = { ...legalMoves(afterFirst)[0], seq: 1, id: "queued-2" };
+  const correct = { code: room.code, moves: [first, second], finish: true };
+  assert.throws(
+    () =>
+      s.dispatch(
+        "room.submitAsync",
+        {
+          ...correct,
+          moves: [first, { ...second, seq: 3 }],
+        },
+        a.token,
+      ),
+    /stale/,
+  );
+  assert.equal(
+    s.dispatch("room.get", { code: room.code }, a.token).game.moves.length,
+    0,
+  );
+  const confirmed = s.dispatch("room.submitAsync", correct, a.token);
+  assert.equal(
+    confirmed.game.score,
+    replay(room.game.seed, [first, second]).score,
+  );
+  assert.equal(confirmed.game.done, true);
+  assert.equal(confirmed.replays, undefined);
+  s.dispatch("room.finish", { code: room.code }, b.token);
+  advance(86400001);
+  const retry = s.dispatch("room.submitAsync", correct, a.token);
+  assert.equal(retry.status, "final");
+  assert.deepEqual(retry.game, confirmed.game);
+  assert.throws(
+    () =>
+      s.dispatch(
+        "room.submitAsync",
+        {
+          ...correct,
+          moves: [{ ...first, row: first.row + 1 }],
+        },
+        a.token,
+      ),
+    /different/,
+  );
+  const list = s.dispatch("rooms", {}, a.token);
+  assert.equal(
+    list.find((entry: any) => entry.code === room.code).ownDone,
+    true,
+  );
+  assert.equal(
+    typeof list.find((entry: any) => entry.code === room.code).finishedAt,
+    "number",
+  );
+});
+test("new offline moves are refused after the deadline and in live matches", () => {
+  const { s, a, b, advance } = setup();
+  const asyncRoom = match(s, a, b, "async");
+  const live = match(s, a, b);
+  assert.throws(
+    () =>
+      s.dispatch(
+        "room.submitAsync",
+        {
+          code: live.code,
+          moves: [],
+          finish: true,
+        },
+        a.token,
+      ),
+    /only available/,
+  );
+  advance(86400001);
+  const first = { ...legalMoves(asyncRoom.game)[0], seq: 0, id: "expired" };
+  assert.throws(
+    () =>
+      s.dispatch(
+        "room.submitAsync",
+        {
+          code: asyncRoom.code,
+          moves: [first],
+          finish: false,
+        },
+        a.token,
+      ),
+    /no longer accepting/,
+  );
+  assert.equal(
+    s.dispatch("room.get", { code: asyncRoom.code }, a.token).game.moves.length,
+    0,
+  );
 });
 test("ranked rejects boosters, impossible moves, anonymous and outsider access", () => {
   const { s, a, b } = setup();

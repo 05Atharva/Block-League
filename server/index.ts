@@ -7,8 +7,9 @@ export function startServer({
   port = Number(process.env.PORT || 8787),
   host = process.env.HOST || "127.0.0.1",
   file = process.env.DATA_FILE || "./data/block-league.json",
+  championshipEnabled = process.env.ENABLE_CHAMPIONSHIP === "1",
 } = {}) {
-  const service = new Service(file),
+  const service = new Service(file, undefined, championshipEnabled),
     rate = new Map<string, { count: number; until: number }>();
   const server = http.createServer(async (req, res) => {
     const origin = req.headers.origin || "";

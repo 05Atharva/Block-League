@@ -1,5 +1,61 @@
 /** Reviewed-by-code translations for core menus and learning. Native-speaker QA is still required. */
 const words: Record<string, [string, string]> = {
+  "Copy private invite link": [
+    "निजी निमंत्रण लिंक कॉपी करें",
+    "खाजगी निमंत्रणाची लिंक कॉपी करा",
+  ],
+  "Private invite link copied.": [
+    "निजी निमंत्रण लिंक कॉपी हो गया।",
+    "खाजगी निमंत्रणाची लिंक कॉपी झाली.",
+  ],
+  "Couldn’t copy the link. Share the invitation code instead.": [
+    "लिंक कॉपी नहीं हुआ। निमंत्रण कोड साझा करें।",
+    "लिंक कॉपी झाली नाही. त्याऐवजी निमंत्रण संकेतांक शेअर करा.",
+  ],
+  "Invitation saved. Open Face-Off when you’re ready to review it.": [
+    "निमंत्रण सहेजा गया। जब तैयार हों, मुकाबले की स्क्रीन खोलें।",
+    "निमंत्रण जतन केले. पाहण्यासाठी तयार असाल तेव्हा सामन्यांची स्क्रीन उघडा.",
+  ],
+  "Achievement card": ["उपलब्धि कार्ड", "कामगिरीचे कार्ड"],
+  "Share verified badge": ["सत्यापित बैज साझा करें", "सत्यापित बॅज शेअर करा"],
+  "Server-verified achievement": [
+    "सर्वर से सत्यापित उपलब्धि",
+    "सर्व्हरने सत्यापित केलेली कामगिरी",
+  ],
+  "This badge is not verified yet.": [
+    "यह बैज अभी सत्यापित नहीं है।",
+    "हा बॅज अजून सत्यापित झालेला नाही.",
+  ],
+  "Same blocks. Your move.": [
+    "वही ब्लॉक। अब आपकी चाल।",
+    "तेच ब्लॉक. आता तुमची चाल.",
+  ],
+  "Practice challenge · seed {seed}": [
+    "अभ्यास चुनौती · सीड {seed}",
+    "सरावाचे आव्हान · सीड {seed}",
+  ],
+  "Inside a fixture, each individual duel earns 2 points for a win, 1 for a draw and 0 for a loss.":
+    [
+      "टीम मुकाबले में हर व्यक्तिगत मैच की जीत पर 2, बराबरी पर 1 और हार पर 0 अंक मिलते हैं।",
+      "संघाच्या सामन्यात प्रत्येक वैयक्तिक लढतीच्या विजयासाठी 2, बरोबरीसाठी 1 आणि पराभवासाठी 0 गुण मिळतात.",
+    ],
+  "In the standings, each team fixture earns 2 league points for a win, 1 for a draw and 0 for a loss.":
+    [
+      "अंक तालिका में टीम मुकाबले की जीत पर 2, बराबरी पर 1 और हार पर 0 लीग अंक मिलते हैं।",
+      "गुणतालिकेत संघाच्या सामन्यातील विजयासाठी 2, बरोबरीसाठी 1 आणि पराभवासाठी 0 लीग गुण मिळतात.",
+    ],
+  "{points} league points · {played} fixtures played": [
+    "{points} लीग अंक · {played} टीम मुकाबले खेले",
+    "{points} लीग गुण · {played} संघ सामने खेळले",
+  ],
+  "Fixture points · {points}": [
+    "टीम मुकाबले के अंक · {points}",
+    "संघाच्या सामन्याचे गुण · {points}",
+  ],
+  "Championship registration is not open yet": [
+    "चैंपियनशिप का पंजीकरण अभी खुला नहीं है",
+    "चॅम्पियनशिपची नोंदणी अजून सुरू झालेली नाही",
+  ],
   Settings: ["सेटिंग", "सेटिंग्ज"],
   "8 by 8 puzzle board": ["8 गुणा 8 का पहेली बोर्ड", "8 बाय 8 चा कोडेफळा"],
   "Piece {number}, used": [

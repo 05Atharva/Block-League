@@ -122,9 +122,15 @@ export class Service {
   db: DB;
   path?: string;
   clock: () => number;
-  constructor(path?: string, clock = () => Date.now()) {
+  private championshipEnabled: boolean;
+  constructor(
+    path?: string,
+    clock = () => Date.now(),
+    championshipEnabled = false,
+  ) {
     this.path = path;
     this.clock = clock;
+    this.championshipEnabled = championshipEnabled;
     this.db =
       path && existsSync(path)
         ? JSON.parse(readFileSync(path, "utf8"))
@@ -841,9 +847,16 @@ export class Service {
               ),
             }));
           break;
+        case "league.formats":
+          out = this.championshipEnabled ? [4, 8] : [4];
+          break;
         case "league.create":
           this.social(u);
           assert([4, 8].includes(d.size), "Choose four or eight teams");
+          assert(
+            d.size === 4 || this.championshipEnabled,
+            "Championship registration is not open yet",
+          );
           {
             const name = clean(d.name, LEAGUE_NAME_LIMIT + 1);
             assert(name.length >= 2, "Enter a league name");

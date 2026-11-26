@@ -6,7 +6,11 @@ import { startServer } from "../server/index.ts";
 import { legalMoves } from "../shared/engine.ts";
 import { defaults } from "../app/src/design.ts";
 
-const { server, service } = startServer({ port: 0, file: "" });
+const { server, service } = startServer({
+  port: 0,
+  file: "",
+  championshipEnabled: false,
+});
 await once(server, "listening");
 const base = `http://127.0.0.1:${server.address().port}`;
 const layout = {
@@ -317,6 +321,9 @@ try {
     "Go home",
   ).click();
   await play.getByRole("tab", { name: "Club", exact: true }).click();
+  await play.getByText(/each individual duel earns 2 points/).waitFor();
+  await play.getByText(/each team fixture earns 2 league points/).waitFor();
+  assert.equal(await button(play, "Create 8-team Championship").count(), 0);
   const seasonName = "Mobile QA Six Hour Season";
   await play.getByLabel("Season name").fill(seasonName);
   await play.getByLabel("Fixture window in hours (1–168)").fill("6");
@@ -343,7 +350,7 @@ try {
     .waitFor();
   await offline.close();
   console.log(
-    "PASS Offline result deep-link, full season name, closed registration, and honest billing notice",
+    "PASS Offline result deep-link, league scoring explanations, Championship visibility, closed registration, and honest billing notice",
   );
 
   const touch = await browser.newContext({

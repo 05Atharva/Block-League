@@ -9,7 +9,7 @@ import {
   playoffPairs,
 } from "../shared/competition.ts";
 function setup(size: number, family = false) {
-  const s = new Service();
+  const s = new Service(undefined, undefined, size === 8);
   const users: any[] = [],
     teams: any[] = [];
   for (let i = 0; i < size; i++) {
@@ -58,6 +58,31 @@ function setup(size: number, family = false) {
   s.dispatch("league.start", { id: l.id }, owner.token);
   return { s, users, teams, owner, l };
 }
+test("Championship creation is gated while Mini League stays available", () => {
+  const s = new Service();
+  const { token } = s.dispatch("register", {
+    alias: "Pilot organiser",
+    age: "25-44",
+  });
+  assert.deepEqual(s.dispatch("league.formats", {}, token), [4]);
+  assert.throws(
+    () => s.dispatch("league.create", { name: "Championship", size: 8 }, token),
+    /Championship registration is not open yet/,
+  );
+  assert.equal(
+    s.dispatch("league.create", { name: "Mini League", size: 4 }, token).size,
+    4,
+  );
+  const enabled = new Service(undefined, undefined, true);
+  const organiser = enabled.dispatch("register", {
+    alias: "Championship organiser",
+    age: "25-44",
+  });
+  assert.deepEqual(
+    enabled.dispatch("league.formats", {}, organiser.token),
+    [4, 8],
+  );
+});
 test("guardian-approved family member can enter an invited league fixture, and revocation blocks active access", () => {
   const { s, users, l } = setup(4, true);
   const child = users[1];

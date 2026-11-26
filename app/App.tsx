@@ -45,12 +45,13 @@ import { BrandMark } from "./src/brand";
 import { PlayHome } from "./src/PlayHome";
 import { ResultMark, ScoreBeat } from "./src/GameFeedback";
 import { useScreenArrival } from "./src/motion";
-import { load, persist, newProfile } from "./src/storage";
+import { defaultServer, load, persist, newProfile } from "./src/storage";
 import type { Local, Profile } from "./src/storage";
 import { NetworkError, RequestError, request } from "./src/api";
 import { awaitsSubmission, draftKey } from "./src/asyncDraft";
 import type { AsyncDraft } from "./src/asyncDraft";
 import { exportCard } from "./src/share";
+import type { CardDetails } from "./src/share";
 import { ShareCard } from "./src/ShareCard";
 import {
   Dialog,
@@ -83,6 +84,14 @@ const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2);
 const randomSeed = () => Math.floor(Math.random() * 0xffffffff);
 const earnedStars = (game: Game) =>
   game.moves.length >= 3 ? Math.max(1, Math.floor(game.lines / 2)) : 0;
+function gameLink(suffix: string) {
+  const origin =
+    Platform.OS === "web"
+      ? window.location.origin
+      : process.env.EXPO_PUBLIC_WEB_URL?.replace(/\/+$/, "") ||
+        "blockleague://";
+  return `${origin}/${suffix}`;
+}
 const emptyForm = {
   alias: "",
   age: "unknown",
@@ -124,9 +133,10 @@ export default function App() {
 }
 function GameApp() {
   const shareRef = useRef<React.ElementRef<typeof View>>(null);
-  const [sharePreview, setSharePreview] = useState(false);
+  const [sharePreview, setSharePreview] = useState<CardDetails | null>(null);
   const onlineToken = useRef<{ profile: string; token: string } | null>(null),
     acceptedRoom = useRef<any>(null);
+  const profileView = useRef(0);
   const syncRevision = useRef<Record<string, number>>({});
   const [fontsLoaded, fontError] = useFonts({
     [fonts.body]: InstrumentSans_400Regular,
@@ -138,7 +148,7 @@ function GameApp() {
   const [local, setLocal] = useState<Local>({
       profiles: [],
       active: "",
-      server: process.env.EXPO_PUBLIC_API_URL || "http://localhost:8787",
+      server: defaultServer,
     }),
     [loaded, setLoaded] = useState(false);
   const profile = local.profiles.find((p) => p.id === local.active);
@@ -189,6 +199,8 @@ function GameApp() {
   const [submissionError, setSubmissionError] = useState("");
   const [roomUnavailable, setRoomUnavailable] = useState(false);
   const pendingChallenge = useRef<number | null>(null);
+  const [pendingInvite, setPendingInvite] = useState<string | null>(null);
+  const [championshipEnabled, setChampionshipEnabled] = useState(false);
   const [replayStep, setReplayStep] = useState(0),
     [familyFirst, setFamilyFirst] = useState<Game | null>(null),
     [handoff, setHandoff] = useState(false),
@@ -241,6 +253,7 @@ function GameApp() {
     setToast(null);
   }
   function resetProfileViews() {
+    profileView.current++;
     acceptedRoom.current = null;
     setRoomCode("");
     setRoom(null);
@@ -249,6 +262,9 @@ function GameApp() {
     setRooms([]);
     setTeams([]);
     setLeagues([]);
+    setChampionshipEnabled(false);
+    setSharePreview(null);
+    setDialog(null);
     setOffer(null);
     setForm(emptyForm);
     setSubmissionError("");
@@ -481,12 +497,14 @@ function GameApp() {
   }
   async function refreshClub() {
     const token = await ensureOnline();
-    const [ts, ls] = await Promise.all([
+    const [ts, ls, formats] = await Promise.all([
       api("teams", {}, token),
       api("leagues", {}, token),
+      api("league.formats", {}, token),
     ]);
     setTeams(ts);
     setLeagues(ls);
+    setChampionshipEnabled(formats.includes(8));
     setTeam((current: any) =>
       current ? ts.find((x: any) => x.id === current.id) || null : null,
     );
@@ -651,12 +669,13 @@ function GameApp() {
     submissionError,
     roomUnavailable,
   ]);
-  const finalRoom =
-    mode === "online" && room?.status === "final" && screen === "game"
+  const refreshProfile =
+    screen === "profile" ||
+    (mode === "online" && room?.status === "final" && screen === "game"
       ? room.code
-      : undefined;
+      : undefined);
   useEffect(() => {
-    if (!finalRoom || !profileToken) return;
+    if (!refreshProfile || !profileToken) return;
     let active = true;
     request(local.server, profileToken, "me")
       .then((user) => {
@@ -667,7 +686,7 @@ function GameApp() {
     return () => {
       active = false;
     };
-  }, [finalRoom, profileId, profileToken, local.server]);
+  }, [refreshProfile, profileId, profileToken, local.server]);
   function start(m: Mode, resume = false, seed = randomSeed()) {
     setMode(m);
     setRoomCode("");
@@ -691,7 +710,18 @@ function GameApp() {
     setNewSoloBest(false);
     go("game");
   }
-  const openChallenge = useEffectEvent((url: string) => {
+  const openGameLink = useEffectEvent((url: string) => {
+    const invite = url.match(/#invite=([A-F0-9]{8})$/i);
+    if (invite) {
+      pendingChallenge.current = null;
+      setPendingInvite(invite[1].toUpperCase());
+      if (profile && screen !== "home" && screen !== "rooms")
+        notify(
+          "Invitation saved. Open Face-Off when you’re ready to review it.",
+          "info",
+        );
+      return;
+    }
     const match = url.match(/[?&]challenge=(\d+)(?:[&#]|$)/);
     if (!match) return;
     const seed = Number(match[1]);
@@ -701,55 +731,90 @@ function GameApp() {
   });
   useEffect(() => {
     if (!loaded) return;
+    if (Platform.OS === "web") {
+      const openLocation = () => openGameLink(window.location.href);
+      openLocation();
+      window.addEventListener("hashchange", openLocation);
+      return () => window.removeEventListener("hashchange", openLocation);
+    }
     let active = true;
     Linking.getInitialURL().then((url) => {
-      if (active && url) openChallenge(url);
+      if (active && url) openGameLink(url);
     });
-    const sub = Linking.addEventListener("url", ({ url }) =>
-      openChallenge(url),
-    );
+    const sub = Linking.addEventListener("url", ({ url }) => openGameLink(url));
     return () => {
       active = false;
       sub.remove();
     };
   }, [loaded]);
-  function reviewInvitation() {
-    const code = form.code?.trim().toUpperCase() ?? "";
+  async function reviewInvitation(code: string) {
     if (!/^[A-F0-9]{8}$/.test(code)) {
       notify("Enter the eight-character room code.", "error");
       return;
     }
-    run(async () => {
-      const token = await ensureOnline();
-      const invite = await api("room.preview", { code }, token);
-      const window =
-        invite.kind === "live" ? "Live · 15 minutes" : "Async · 24 hours";
-      setDialog({
-        title: "Private match details",
-        body: formatMessage(
-          "{mode}. Up to {count} placements per player. This invitation can be used until {date}.",
-          settings.language,
-          {
-            mode: translate(window, settings.language),
-            count: invite.placements,
-            date: new Date(invite.expiresAt).toLocaleString(settings.language),
-          },
-        ),
-        label: "Join private room",
-        action: () =>
-          run(async () => {
-            const r = await api("room.join", { code: invite.code }, token);
-            receiveRoom(r);
-            setRoomCode(r.code);
-            setSubmissionError("");
-            setMode("online");
-            setSelected(-1);
-            setAnchor(null);
-            go("game");
-          }),
-      });
+    const view = profileView.current;
+    const token = await ensureOnline();
+    if (view !== profileView.current) return;
+    const invite = await api("room.preview", { code }, token);
+    if (view !== profileView.current) return;
+    const matchWindow =
+      invite.kind === "live" ? "Live · 15 minutes" : "Async · 24 hours";
+    setDialog({
+      title: "Private match details",
+      body: formatMessage(
+        "{mode}. Up to {count} placements per player. This invitation can be used until {date}.",
+        settings.language,
+        {
+          mode: translate(matchWindow, settings.language),
+          count: invite.placements,
+          date: new Date(invite.expiresAt).toLocaleString(settings.language),
+        },
+      ),
+      label: "Join private room",
+      action: () =>
+        run(async () => {
+          if (view !== profileView.current) return;
+          const r = await api("room.join", { code: invite.code }, token);
+          if (view !== profileView.current) return;
+          if (
+            Platform.OS === "web" &&
+            window.location.hash.toUpperCase() === `#INVITE=${invite.code}`
+          ) {
+            window.history.replaceState(
+              window.history.state,
+              "",
+              window.location.pathname + window.location.search,
+            );
+          }
+          receiveRoom(r);
+          setRoomCode(r.code);
+          setSubmissionError("");
+          setMode("online");
+          setSelected(-1);
+          setAnchor(null);
+          go("game");
+        }),
     });
   }
+  const reviewLinkedInvitation = useEffectEvent((code: string) => {
+    setPendingInvite(null);
+    setForm((current) => ({ ...current, code }));
+    go("rooms");
+    void run(() => reviewInvitation(code));
+  });
+  useEffect(() => {
+    if (
+      pendingInvite &&
+      profileId &&
+      !busy &&
+      !dialog &&
+      !inboxOpen &&
+      (screen === "home" || screen === "rooms")
+    ) {
+      const review = setTimeout(() => reviewLinkedInvitation(pendingInvite), 0);
+      return () => clearTimeout(review);
+    }
+  }, [pendingInvite, profileId, busy, dialog, inboxOpen, screen]);
   function stageAsync(game: Game, move?: Move, finishAttempt = false) {
     const key = draftKey(local.server, roomCode);
     const before = draftCache.current[key];
@@ -858,11 +923,36 @@ function GameApp() {
       },
     });
   }
-  async function shareResult(card = false) {
-    if (profile?.age === "7-12" && !profile.user?.sharing)
-      throw Error("A guardian must approve external sharing in Profile.");
-    if (profile?.age === "unknown")
+  async function checkSharing() {
+    if (!profile || profile.age === "unknown")
       throw Error("Choose a known-age profile before external sharing.");
+    if (profile.age === "7-12") {
+      if (!profile.token || !(await api("me")).sharing)
+        throw Error("A guardian must approve external sharing in Profile.");
+    }
+    return profile;
+  }
+  async function shareAchievement(
+    id: string,
+    title: string,
+    description: string,
+  ) {
+    const view = profileView.current;
+    const player = await checkSharing();
+    const user = await api("me");
+    if (view !== profileView.current) return;
+    if (!user.badges.includes(id))
+      throw Error("This badge is not verified yet.");
+    setSharePreview({
+      kind: "achievement",
+      headline: translate(title, settings.language),
+      detail: translate("Server-verified achievement", settings.language),
+      caption: translate(description, settings.language),
+      alias: player.alias,
+    });
+  }
+  async function shareResult(card = false) {
+    const player = await checkSharing();
     if (
       mode === "online" &&
       (room?.status !== "final" ||
@@ -873,11 +963,19 @@ function GameApp() {
       mode === "online"
         ? "Server-validated Face-Off"
         : resultMode || "Unranked practice";
-    if (card) setSharePreview(true);
+    if (card)
+      setSharePreview({
+        kind: "result",
+        headline: game.score.toLocaleString(settings.language),
+        detail: translate(label, settings.language),
+        caption: translate("Same blocks. Your move.", settings.language),
+        footer: message("Practice challenge · seed {seed}", {
+          seed: game.seed,
+        }),
+        alias: player.alias,
+      });
     else {
-      const origin =
-        Platform.OS === "web" ? window.location.origin : "blockleague://";
-      const url = `${origin}/?challenge=${game.seed}`;
+      const url = gameLink(`?challenge=${game.seed}`);
       const message = `Block League · ${label} · ${game.score} points. Try the same pieces in unranked practice: ${url}`;
       if (Platform.OS === "web" && typeof navigator.share !== "function") {
         await Clipboard.setStringAsync(url);
@@ -1313,16 +1411,36 @@ function GameApp() {
                         : "24-hour asynchronous window. You do not need to play together."}{" "}
                       Equal scores are a draw.
                     </Txt>
-                    <Button
-                      secondary
-                      title="Copy invite code"
-                      onPress={() =>
-                        run(async () => {
-                          await Clipboard.setStringAsync(roomCode);
-                          notify("Invite code copied.");
-                        })
-                      }
-                    />
+                    <Row>
+                      <Button
+                        secondary
+                        title="Copy private invite link"
+                        onPress={() =>
+                          run(async () => {
+                            await checkSharing();
+                            const copied = await Clipboard.setStringAsync(
+                              gameLink(`#invite=${roomCode}`),
+                            );
+                            if (!copied)
+                              throw Error(
+                                "Couldn’t copy the link. Share the invitation code instead.",
+                              );
+                            notify("Private invite link copied.");
+                          })
+                        }
+                      />
+                      <Button
+                        secondary
+                        title="Copy invite code"
+                        onPress={() =>
+                          run(async () => {
+                            await checkSharing();
+                            if (await Clipboard.setStringAsync(roomCode))
+                              notify("Invite code copied.");
+                          })
+                        }
+                      />
+                    </Row>
                     {room.players.map((p: any) => (
                       <Row key={p.id}>
                         <Txt bold>{p.alias}</Txt>
@@ -1957,7 +2075,11 @@ function GameApp() {
                   <Button
                     title="Review invitation"
                     disabled={busy}
-                    onPress={reviewInvitation}
+                    onPress={() =>
+                      run(() =>
+                        reviewInvitation(form.code.trim().toUpperCase()),
+                      )
+                    }
                   />
                 </Card>
                 <Button
@@ -2141,31 +2263,41 @@ function GameApp() {
                       })
                     }
                   />
-                  <Button
-                    secondary
-                    title="Create 8-team Championship"
-                    onPress={() =>
-                      run(async () => {
-                        const token = await ensureOnline();
-                        setLeague(
-                          await api(
-                            "league.create",
-                            {
-                              name: form.leagueName,
-                              size: 8,
-                              windowHours: Number(form.window),
-                            },
-                            token,
-                          ),
-                        );
-                        await refreshClub();
-                        go("league");
-                      })
-                    }
-                  />
+                  {championshipEnabled && (
+                    <Button
+                      secondary
+                      title="Create 8-team Championship"
+                      onPress={() =>
+                        run(async () => {
+                          const token = await ensureOnline();
+                          setLeague(
+                            await api(
+                              "league.create",
+                              {
+                                name: form.leagueName,
+                                size: 8,
+                                windowHours: Number(form.window),
+                              },
+                              token,
+                            ),
+                          );
+                          await refreshClub();
+                          go("league");
+                        })
+                      }
+                    />
+                  )}
                   {field("leagueCode", "Season invitation code", {
                     autoCapitalize: "characters",
                   })}
+                  <Txt muted>
+                    Inside a fixture, each individual duel earns 2 points for a
+                    win, 1 for a draw and 0 for a loss.
+                  </Txt>
+                  <Txt muted>
+                    In the standings, each team fixture earns 2 league points
+                    for a win, 1 for a draw and 0 for a loss.
+                  </Txt>
                   {teams
                     .filter((t) => t.captain === profile.user?.id && !t.locked)
                     .map((t) => (
@@ -2407,7 +2539,10 @@ function GameApp() {
                         {i + 1}. {league.teamNames[r.id]}
                       </Txt>
                       <Txt>
-                        {r.points} pts · {r.played} played
+                        {message(
+                          "{points} league points · {played} fixtures played",
+                          { points: r.points, played: r.played },
+                        )}
                       </Txt>
                     </Row>
                   ))}
@@ -2471,8 +2606,14 @@ function GameApp() {
                         : f.winner === null
                           ? "Draw"
                           : `Winner: ${league.teamNames[f.winner]}`}
-                      {f.points ? " · " + f.points.join("–") : ""}
                     </Txt>
+                    {f.points && (
+                      <Txt muted>
+                        {message("Fixture points · {points}", {
+                          points: f.points.join("–"),
+                        })}
+                      </Txt>
+                    )}
                   </Card>
                 ))}
                 <Button
@@ -2640,6 +2781,15 @@ function GameApp() {
                             ? "EARNED LOCALLY"
                             : "NOT YET EARNED"}
                       </Tag>
+                      {verified && (
+                        <Button
+                          secondary
+                          title="Share verified badge"
+                          onPress={() =>
+                            run(() => shareAchievement(id, title, desc))
+                          }
+                        />
+                      )}
                     </Card>
                   );
                 })}
@@ -3227,9 +3377,13 @@ function GameApp() {
         )}
         {sharePreview && (
           <Overlay
-            title="Result card"
+            title={
+              sharePreview.kind === "achievement"
+                ? "Achievement card"
+                : "Result card"
+            }
             onClose={() => {
-              if (!busy) setSharePreview(false);
+              if (!busy) setSharePreview(null);
             }}
           >
             {toast && (
@@ -3239,13 +3393,7 @@ function GameApp() {
               <ShareCard
                 ref={shareRef}
                 width={Math.min(280, width - 68)}
-                score={game.score}
-                mode={
-                  official
-                    ? "Server-validated Face-Off"
-                    : resultMode || "Unranked practice"
-                }
-                seed={game.seed}
+                card={sharePreview}
               />
             </View>
             <Row style={{ justifyContent: "flex-end" }}>
@@ -3253,7 +3401,7 @@ function GameApp() {
                 secondary
                 title="Close preview"
                 disabled={busy}
-                onPress={() => setSharePreview(false)}
+                onPress={() => setSharePreview(null)}
               />
               <Button
                 title="Save / share PNG"
@@ -3261,15 +3409,9 @@ function GameApp() {
                 onPress={() =>
                   run(async () => {
                     setToast(null);
-                    await exportCard(
-                      game.score,
-                      official
-                        ? "Server-validated Face-Off"
-                        : resultMode || "Unranked practice",
-                      game.seed,
-                      shareRef,
-                    );
-                    setSharePreview(false);
+                    await checkSharing();
+                    await exportCard(sharePreview, shareRef);
+                    setSharePreview(null);
                   })
                 }
               />

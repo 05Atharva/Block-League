@@ -12,7 +12,11 @@ import { tmpdir } from "node:os";
 import assert from "node:assert/strict";
 import { once } from "node:events";
 const temp = mkdtempSync(join(tmpdir(), "block-league-ui-"));
-const { server } = startServer({ port: 0, file: join(temp, "data.json") });
+const { server, service } = startServer({
+  port: 0,
+  file: join(temp, "data.json"),
+  championshipEnabled: false,
+});
 await once(server, "listening");
 const port = server.address().port,
   base = `http://127.0.0.1:${port}`;
@@ -23,6 +27,13 @@ const ok = (name) => {
   checks.push(name);
   console.log("PASS", name);
 };
+async function captureOverlay(page, name) {
+  await page.waitForFunction(() => {
+    const panel = document.querySelector('[data-testid="overlay-panel"]');
+    return panel && Number(getComputedStyle(panel).opacity) === 1;
+  });
+  await page.screenshot({ path: join(temp, name) });
+}
 try {
   const launch = { headless: true };
   if (process.env.CHROME_MODULE) {
@@ -214,15 +225,6 @@ try {
     .getByRole("button", { name: "Create private online account", exact: true })
     .click();
   await page.getByText("Online account connected.", { exact: true }).waitFor();
-  await profile(guest, "UI Friend");
-  await guest
-    .getByRole("button", { name: "Profile and settings", exact: true })
-    .click();
-  await guest.getByLabel("Game server URL").fill(base);
-  await guest
-    .getByRole("button", { name: "Create private online account", exact: true })
-    .click();
-  await guest.getByText("Online account connected.", { exact: true }).waitFor();
   await page.getByRole("button", { name: "Home", exact: true }).click();
   await page
     .getByRole("button", { name: "Play with friends ↗", exact: true })
@@ -234,14 +236,23 @@ try {
   const code = (await page.locator("body").innerText()).match(
     /\b[A-F0-9]{8}\b/,
   )[0];
-  await guest.getByRole("button", { name: "Home", exact: true }).click();
-  await guest
-    .getByRole("button", { name: "Play with friends ↗", exact: true })
+  await a.grantPermissions(["clipboard-read", "clipboard-write"], {
+    origin: base,
+  });
+  await page
+    .getByRole("button", { name: "Copy private invite link", exact: true })
     .click();
-  await guest.getByLabel("Invitation code").fill(code);
-  await guest
-    .getByRole("button", { name: "Review invitation", exact: true })
-    .click();
+  await page
+    .getByText("Private invite link copied.", { exact: true })
+    .waitFor();
+  const inviteLink = await page.evaluate(() => navigator.clipboard.readText());
+  assert.equal(inviteLink, `${base}/#invite=${code}`);
+  debugPage = guest;
+  await guest.setViewportSize({ width: 320, height: 760 });
+  await guest.goto(inviteLink);
+  await guest.getByLabel("Choose an alias").fill("UI Friend");
+  await guest.getByRole("button", { name: "18-24", exact: true }).click();
+  await guest.getByRole("button", { name: "Let’s play", exact: true }).click();
   const invitation = guest.getByRole("dialog", {
     name: "Private match details",
   });
@@ -249,9 +260,21 @@ try {
     await invitation.innerText(),
     /15 minutes.*30 placements.*until/s,
   );
+  await captureOverlay(guest, "private-invitation-light.png");
+  assert.equal(service.db.rooms[code].players.length, 1);
+  await invitation.getByRole("button", { name: "Cancel", exact: true }).click();
+  assert.equal(service.db.rooms[code].players.length, 1);
+  assert.equal(await guest.getByLabel("Invitation code").inputValue(), code);
+  await guest
+    .getByRole("button", { name: "Review invitation", exact: true })
+    .click();
   await invitation
     .getByRole("button", { name: "Join private room", exact: true })
     .click();
+  await guest.waitForURL(`${base}/`);
+  ok(
+    "Copied private link survives first profile setup and only claims a seat after confirmation",
+  );
   await page
     .getByRole("button", { name: "Remove unstarted guest", exact: true })
     .click();
@@ -292,8 +315,55 @@ try {
     "Two browser clients create/join, ready, play, finalise and view both replays",
   );
   await page.screenshot({ path: join(temp, "replay.png"), fullPage: true });
+  debugPage = page;
+  await page
+    .getByRole("button", { name: "Profile and settings", exact: true })
+    .click();
+  await page
+    .getByRole("button", { name: "Accessibility & appearance", exact: true })
+    .click();
+  await page.getByRole("button", { name: "Night Club", exact: true }).click();
+  await page
+    .getByRole("button", { name: "Profile and settings", exact: true })
+    .click();
+  await page.setViewportSize({ width: 320, height: 760 });
+  await page
+    .getByRole("button", { name: "Share verified badge", exact: true })
+    .click();
+  const badge = page.getByRole("dialog", { name: "Achievement card" });
+  assert.match(
+    await badge.innerText(),
+    /Clean Duel[\s\S]*Server-verified achievement[\s\S]*UI Player/,
+  );
+  assert.doesNotMatch(await badge.innerText(), new RegExp(`UI Friend|${code}`));
+  await captureOverlay(page, "achievement-card.png");
+  const badgeDownload = page.waitForEvent("download");
+  await badge
+    .getByRole("button", { name: "Save / share PNG", exact: true })
+    .click();
+  const cardImage = await badgeDownload;
+  assert.equal(cardImage.suggestedFilename(), "block-league-achievement.png");
+  assert.equal(
+    readFileSync(await cardImage.path())
+      .subarray(1, 4)
+      .toString(),
+    "PNG",
+  );
+  ok("Earned verified badge exports a PNG with only the sharer’s identity");
   assert.deepEqual(errors, []);
-  ok("No browser runtime errors");
+  ok("No browser runtime errors in the successful flows");
+  debugPage = guest;
+  await guest.getByRole("button", { name: "Home", exact: true }).click();
+  await guest.evaluate((hash) => {
+    window.location.hash = hash;
+  }, `invite=${code}`);
+  await guest
+    .getByTestId("toast")
+    .getByText(/unavailable|already started|expired/i)
+    .waitFor();
+  assert.equal(await invitation.count(), 0);
+  assert.ok(errors.every((error) => error.includes("400 (Bad Request)")));
+  ok("A closed match link fails clearly without reopening the room");
   mkdirSync("docs", { recursive: true });
   writeFileSync(
     "docs/ui-test-results.json",
@@ -301,7 +371,7 @@ try {
       {
         at: new Date().toISOString(),
         passed: checks,
-        errors,
+        errors: errors.filter((error) => !error.includes("400 (Bad Request)")),
         renderer: "Chromium, Expo React Native Web export",
         notTested: [
           "Android/iOS physical touch and assistive technology",

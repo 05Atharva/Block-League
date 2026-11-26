@@ -1,5 +1,13 @@
 import { Platform } from "react-native";
 import { brand, palette } from "./design";
+export type CardDetails = {
+  kind: "result" | "achievement";
+  headline: string;
+  detail: string;
+  caption: string;
+  alias: string;
+  footer?: string;
+};
 const esc = (s: string) =>
   s.replace(
     /[&<>"']/g,
@@ -12,7 +20,23 @@ const esc = (s: string) =>
         "'": "&apos;",
       })[c]!,
   );
-export function resultSvg(score: number, mode: string, seed: number) {
+function cardSvg(card: CardDetails, context: CanvasRenderingContext2D) {
+  function line(
+    value: string,
+    y: number,
+    size: number,
+    color: string,
+    bold = false,
+  ) {
+    context.font = `${bold ? "bold " : ""}${size}px sans-serif`;
+    const width = context.measureText(value).width;
+    const fontSize = Math.min(
+      size,
+      Math.floor((size * 800) / Math.max(1, width)),
+    );
+    return `<text x="140" y="${y}" fill="${color}" font-size="${fontSize}" font-weight="${bold ? "bold" : "normal"}">${esc(value)}</text>`;
+  }
+  const achievement = card.kind === "achievement";
   const tiles = palette
     .map(
       (color, i) =>
@@ -28,25 +52,26 @@ export function resultSvg(score: number, mode: string, seed: number) {
     </g>
     <g font-family="sans-serif">
       <text x="205" y="186" fill="${brand.paper}" font-size="40" font-weight="bold">Block League</text>
-      <text x="140" y="495" fill="${brand.accent}" font-size="154" font-weight="bold">${score.toLocaleString()}</text>
-      <text x="140" y="580" fill="${brand.quiet}" font-size="38">${esc(mode)}</text>
-      <text x="140" y="1100" fill="${brand.paper}" font-size="42" font-weight="bold">Same blocks. Your move.</text>
-      <text x="140" y="1170" fill="${brand.quiet}" font-size="30">Practice challenge · seed ${seed}</text>
+      ${line(card.headline, 495, achievement ? 88 : 154, brand.accent, true)}
+      ${line(card.detail, 580, 38, brand.quiet)}
+      ${line(card.alias, 650, 40, brand.paper, true)}
+      ${line(card.caption, 1100, 42, brand.paper, true)}
+      ${card.footer ? line(card.footer, 1170, 30, brand.quiet) : ""}
     </g>
     ${tiles}
   </svg>`;
 }
-export async function exportCard(
-  score: number,
-  mode: string,
-  seed: number,
-  ref?: any,
-) {
+export async function exportCard(card: CardDetails, ref?: any) {
   if (Platform.OS !== "web") {
     const { captureAndShare } = await import("./capture");
     return captureAndShare(ref);
   }
-  const svg = resultSvg(score, mode, seed),
+  const canvas = document.createElement("canvas");
+  canvas.width = 1080;
+  canvas.height = 1350;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw Error("Canvas export is unavailable");
+  const svg = cardSvg(card, ctx),
     url = URL.createObjectURL(new Blob([svg], { type: "image/svg+xml" }));
   try {
     const img = new Image();
@@ -55,11 +80,6 @@ export async function exportCard(
       img.onerror = () => reject(Error("Could not render result card"));
       img.src = url;
     });
-    const canvas = document.createElement("canvas");
-    canvas.width = 1080;
-    canvas.height = 1350;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) throw Error("Canvas export is unavailable");
     ctx.drawImage(img, 0, 0);
     const png = await new Promise<Blob>((resolve, reject) =>
       canvas.toBlob(
@@ -70,7 +90,7 @@ export async function exportCard(
     const download = URL.createObjectURL(png);
     const a = document.createElement("a");
     a.href = download;
-    a.download = "block-league-result.png";
+    a.download = `block-league-${card.kind}.png`;
     a.click();
     setTimeout(() => URL.revokeObjectURL(download), 1000);
   } finally {

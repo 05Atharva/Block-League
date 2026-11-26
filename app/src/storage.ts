@@ -1,4 +1,5 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { Platform } from "react-native";
 import { defaults } from "./design";
 import type { Settings } from "./design";
 import type { Game } from "../../shared/engine";
@@ -27,6 +28,11 @@ export type Profile = {
 };
 export type Local = { profiles: Profile[]; active: string; server: string };
 const KEY = "block-league-v3";
+export const defaultServer =
+  process.env.EXPO_PUBLIC_API_URL ||
+  (Platform.OS === "web" && !__DEV__ && typeof window !== "undefined"
+    ? window.location.origin
+    : "http://localhost:8787");
 export function newProfile(alias: string, age: string): Profile {
   return {
     id: Date.now().toString(36) + Math.random().toString(36).slice(2),
@@ -48,7 +54,7 @@ export async function load(): Promise<Local> {
     : {
         profiles: [],
         active: "",
-        server: process.env.EXPO_PUBLIC_API_URL || "http://localhost:8787",
+        server: defaultServer,
       };
 }
 let queue = Promise.resolve();

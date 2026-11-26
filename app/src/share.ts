@@ -1,4 +1,5 @@
 import { Platform } from "react-native";
+import { brand, palette } from "./design";
 const esc = (s: string) =>
   s.replace(
     /[&<>"']/g,
@@ -12,7 +13,28 @@ const esc = (s: string) =>
       })[c]!,
   );
 export function resultSvg(score: number, mode: string, seed: number) {
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1350" viewBox="0 0 1080 1350"><rect width="1080" height="1350" fill="#F6F5F1"/><rect x="70" y="70" width="940" height="1210" rx="50" fill="#233942"/><text x="140" y="190" fill="#D6E7E4" font-family="sans-serif" font-size="34">BLOCK LEAGUE</text><text x="140" y="340" fill="white" font-family="sans-serif" font-size="60">A good little game.</text><text x="140" y="520" fill="#C4B0F6" font-family="sans-serif" font-size="140" font-weight="bold">${score.toLocaleString()}</text><text x="140" y="600" fill="#D6E7E4" font-family="sans-serif" font-size="34">${esc(mode)}</text>${["#F17854", "#9C7CEC", "#46B9A7", "#E5AF41", "#64A7E7", "#DC79AC"].map((c, i) => `<rect x="${140 + (i % 3) * 115}" y="${750 + Math.floor(i / 3) * 115}" width="100" height="100" rx="16" fill="${c}"/>`).join("")}<text x="140" y="1100" fill="white" font-family="sans-serif" font-size="34">Same blocks. Your move.</text><text x="140" y="1170" fill="#B8CDCF" font-family="sans-serif" font-size="25">Practice challenge · seed ${seed}</text></svg>`;
+  const tiles = palette
+    .map(
+      (color, i) =>
+        `<rect x="${140 + (i % 3) * 115}" y="${755 + Math.floor(i / 3) * 115}" width="100" height="100" rx="16" fill="${color}"/>`,
+    )
+    .join("");
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1350" viewBox="0 0 1080 1350">
+    <rect width="1080" height="1350" fill="${brand.paper}"/>
+    <rect x="70" y="70" width="940" height="1210" rx="54" fill="${brand.ink}"/>
+    <g transform="translate(116 128) scale(.68)">
+      <path d="M30 34a8 8 0 0 1 8-8h17a8 8 0 0 1 8 8v38h29a8 8 0 0 1 8 8v15a8 8 0 0 1-8 8H38a8 8 0 0 1-8-8Z" fill="${brand.tile}"/>
+      <rect x="76" y="31" width="30" height="30" rx="7" transform="rotate(9 91 46)" fill="${brand.accent}"/>
+    </g>
+    <g font-family="sans-serif">
+      <text x="205" y="186" fill="${brand.paper}" font-size="40" font-weight="bold">Block League</text>
+      <text x="140" y="495" fill="${brand.accent}" font-size="154" font-weight="bold">${score.toLocaleString()}</text>
+      <text x="140" y="580" fill="${brand.quiet}" font-size="38">${esc(mode)}</text>
+      <text x="140" y="1100" fill="${brand.paper}" font-size="42" font-weight="bold">Same blocks. Your move.</text>
+      <text x="140" y="1170" fill="${brand.quiet}" font-size="30">Practice challenge · seed ${seed}</text>
+    </g>
+    ${tiles}
+  </svg>`;
 }
 export async function exportCard(
   score: number,

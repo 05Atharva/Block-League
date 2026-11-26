@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import {
   View,
-  ScrollView,
+  Animated,
   Pressable,
   Modal,
   ActivityIndicator,
@@ -10,22 +10,35 @@ import {
   Platform,
   Share,
   Linking,
-  Animated,
   useWindowDimensions,
   StatusBar,
 } from "react-native";
 import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 import { useFonts } from "expo-font";
-import { NunitoSans_400Regular } from "@expo-google-fonts/nunito-sans/400Regular";
-import { NunitoSans_800ExtraBold } from "@expo-google-fonts/nunito-sans/800ExtraBold";
+import { BricolageGrotesque_800ExtraBold } from "@expo-google-fonts/bricolage-grotesque/800ExtraBold";
+import { InstrumentSans_400Regular } from "@expo-google-fonts/instrument-sans/400Regular";
+import { InstrumentSans_600SemiBold } from "@expo-google-fonts/instrument-sans/600SemiBold";
 import { AtkinsonHyperlegible_400Regular } from "@expo-google-fonts/atkinson-hyperlegible/400Regular";
 import { NotoSansDevanagari_400Regular } from "@expo-google-fonts/noto-sans-devanagari/400Regular";
 import * as Clipboard from "expo-clipboard";
 import * as Haptics from "expo-haptics";
-import { Board, MiniPiece } from "./src/Board";
+import { Board } from "./src/Board";
 import { Design, Txt, Button, Card, Input, Row, Toggle, Tag } from "./src/ui";
-import { defaults, themes, strings, palettes } from "./src/design";
+import {
+  brand,
+  defaults,
+  themes,
+  strings,
+  palettes,
+  radius,
+  space,
+  fonts,
+} from "./src/design";
 import type { Settings } from "./src/design";
+import { BrandMark } from "./src/brand";
+import { PlayHome } from "./src/PlayHome";
+import { ResultMark, ScoreBeat } from "./src/GameFeedback";
+import { useScreenArrival } from "./src/motion";
 import { load, persist, newProfile } from "./src/storage";
 import type { Local, Profile } from "./src/storage";
 import { request } from "./src/api";
@@ -39,13 +52,13 @@ import {
   fits,
   replay,
   badgeIds,
-  colour,
-  piece,
 } from "../shared/engine";
 import type { Game, Move } from "../shared/engine";
 import { BADGES, REACTIONS, adEligible } from "../shared/competition";
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2);
 const randomSeed = () => Math.floor(Math.random() * 0xffffffff);
+const earnedStars = (game: Game) =>
+  game.moves.length >= 3 ? Math.max(1, Math.floor(game.lines / 2)) : 0;
 const ageGroups = [
   "7-12",
   "13-17",
@@ -70,8 +83,9 @@ function GameApp() {
     acceptedRoom = useRef<any>(null);
   const syncRevision = useRef<Record<string, number>>({});
   const [fontsLoaded, fontError] = useFonts({
-    Nunito: NunitoSans_400Regular,
-    NunitoBold: NunitoSans_800ExtraBold,
+    [fonts.body]: InstrumentSans_400Regular,
+    [fonts.strong]: InstrumentSans_600SemiBold,
+    [fonts.display]: BricolageGrotesque_800ExtraBold,
     Atkinson: AtkinsonHyperlegible_400Regular,
     Devanagari: NotoSansDevanagari_400Regular,
   });
@@ -123,16 +137,19 @@ function GameApp() {
     [handoff, setHandoff] = useState(false),
     [familySecond, setFamilySecond] = useState(false),
     [offer, setOffer] = useState<any>(null),
-    [rounds, setRounds] = useState(0);
+    [newSoloBest, setNewSoloBest] = useState(false);
   const [seconds, setSeconds] = useState(0),
-    [systemReduce, setSystemReduce] = useState(false),
+    [systemReduce, setSystemReduce] = useState(true),
     reminded = useRef(0),
     [undo, setUndo] = useState<Game | null>(null),
     [resultMode, setResultMode] = useState(""),
     [sessionBadges, setSessionBadges] = useState<string[]>([]);
-  const scale = useRef(new Animated.Value(1)).current;
   const { width } = useWindowDimensions();
-  const effective = { ...settings, motion: settings.motion && !systemReduce };
+  const effective = {
+    ...settings,
+    motion: settings.motion && !systemReduce && !settings.lowEffects,
+  };
+  const screenArrival = useScreenArrival(screen, effective.motion);
   function updateProfile(patch: Partial<Profile>) {
     setLocal((l) => ({
       ...l,
@@ -188,7 +205,9 @@ function GameApp() {
           "Saved profiles could not be read. Start a new local profile.",
         );
       });
-    AccessibilityInfo.isReduceMotionEnabled().then(setSystemReduce);
+    AccessibilityInfo.isReduceMotionEnabled()
+      .then(setSystemReduce)
+      .catch(() => {});
     const sub = AccessibilityInfo.addEventListener(
       "reduceMotionChanged",
       setSystemReduce,
@@ -365,16 +384,6 @@ function GameApp() {
         .catch(() => {});
     }
   }, [room?.status]);
-  useEffect(() => {
-    if (!effective.motion) return;
-    scale.setValue(0);
-    Animated.spring(scale, {
-      toValue: 1,
-      damping: 16,
-      stiffness: 180,
-      useNativeDriver: true,
-    }).start();
-  }, [game.score]);
   function start(m: Mode, resume = false) {
     setMode(m);
     setRoomCode("");
@@ -395,6 +404,7 @@ function GameApp() {
     setFamilySecond(false);
     setSessionBadges([]);
     setResultMode("");
+    setNewSoloBest(false);
     go("game");
   }
   function completeLocal(g: Game) {
@@ -409,9 +419,9 @@ function GameApp() {
               ? "Local family duel"
               : "Unassisted Solo";
     setResultMode(label);
-    setRounds((r) => r + 1);
+    setNewSoloBest(mode === "solo" && g.score > (profile?.best ?? 0));
     const earned = badgeIds(g);
-    setSessionBadges(earned);
+    setSessionBadges(earned.filter((id) => !profile?.badges.includes(id)));
     if (profile) {
       const competitiveLocal = mode === "solo";
       updateProfile({
@@ -421,9 +431,7 @@ function GameApp() {
           mode === "practice"
             ? Math.max(profile.practiceBest, g.score)
             : profile.practiceBest,
-        stars:
-          profile.stars +
-          (g.moves.length >= 3 ? Math.max(1, Math.floor(g.lines / 2)) : 0),
+        stars: profile.stars + earnedStars(g),
         badges: [
           ...new Set([
             ...profile.badges,
@@ -538,7 +546,7 @@ function GameApp() {
     rooms: "Play with friends",
     team: team?.name || "Team",
     league: league?.name || "League",
-    result: s.results,
+    result: "Results",
     replay: "The replay room",
     reward: "Cosmetic studio",
     help: s.learn,
@@ -551,14 +559,15 @@ function GameApp() {
           flex: 1,
           justifyContent: "center",
           alignItems: "center",
-          backgroundColor: "#F6F5F1",
+          backgroundColor: t.bg,
         }}
       >
-        <ActivityIndicator size="large" />
+        <ActivityIndicator color={t.brand} size="large" />
         <Txt>Opening your club…</Txt>
       </SafeAreaView>
     );
-  const boardWidth = Math.min(width - 40, 424);
+  const gutter = width < 450 ? space.lg : space.xl;
+  const boardWidth = Math.min(width - 2 * gutter, 424);
   const official = mode === "online",
     gameDisabled =
       busy ||
@@ -566,6 +575,8 @@ function GameApp() {
       (official && (!connected || room?.status !== "playing"));
   const canPlace =
     anchor && selected >= 0 && fits(game, selected, anchor[0], anchor[1]);
+  const starsEarned = earnedStars(game);
+  const lineSummary = `${game.lines} ${game.lines === 1 ? "line" : "lines"}`;
   function roomResult() {
     if (!room?.result) return "Waiting for your friend";
     if (room.result.winner === null) return "An even match";
@@ -576,8 +587,11 @@ function GameApp() {
   function matchResult() {
     return (
       <Card>
-        <Tag>Official result · final</Tag>
-        <Txt size={28} bold>
+        <Row style={{ justifyContent: "space-between" }}>
+          <Tag>Official result · final</Tag>
+          <ResultMark enabled={effective.motion} />
+        </Row>
+        <Txt size={28} display>
           {roomResult()}
         </Txt>
         <Txt muted>
@@ -655,7 +669,7 @@ function GameApp() {
     } else go("home");
   };
   return (
-    <Design.Provider value={settings}>
+    <Design.Provider value={effective}>
       <SafeAreaView style={{ flex: 1, backgroundColor: t.bg }}>
         <StatusBar
           barStyle={
@@ -672,8 +686,8 @@ function GameApp() {
         >
           <Row
             style={{
-              paddingHorizontal: 20,
-              paddingVertical: 14,
+              paddingHorizontal: gutter,
+              paddingVertical: space.sm,
               justifyContent: "space-between",
               borderBottomWidth: 1,
               borderColor: t.border,
@@ -690,30 +704,16 @@ function GameApp() {
                 minWidth: 0,
               }}
             >
-              <Row style={{ flexWrap: "nowrap" }}>
-                <View
-                  style={{
-                    width: 28,
-                    height: 28,
-                    flexDirection: "row",
-                    flexWrap: "wrap",
-                    gap: 3,
-                  }}
+              <Row style={{ width: "100%", flexWrap: "nowrap", gap: space.md }}>
+                <BrandMark />
+                <Txt
+                  display
+                  size={22}
+                  style={{ flex: 1, minWidth: 0, letterSpacing: -0.45 }}
                 >
-                  {["#9C7CEC", "#46B9A7", "#F17854"].map((c) => (
-                    <View
-                      key={c}
-                      style={{
-                        width: 11,
-                        height: 11,
-                        borderRadius: 3,
-                        backgroundColor: c,
-                      }}
-                    />
-                  ))}
-                </View>
-                <Txt bold size={18}>
-                  {pageTitle[screen] || "Block League"}
+                  {screen === "home" || !profile
+                    ? "Block League"
+                    : pageTitle[screen] || "Block League"}
                 </Txt>
               </Row>
             </Pressable>
@@ -725,8 +725,10 @@ function GameApp() {
                 style={{
                   minWidth: 48,
                   minHeight: 48,
-                  borderRadius: 16,
+                  borderRadius: 14,
                   backgroundColor: t.soft,
+                  borderWidth: 1,
+                  borderColor: t.border,
                   justifyContent: "center",
                   alignItems: "center",
                 }}
@@ -735,12 +737,16 @@ function GameApp() {
               </Pressable>
             )}
           </Row>
-          <ScrollView
+          <Animated.ScrollView
+            key={screen}
+            testID="screen-content"
+            style={screenArrival}
             scrollEnabled={!dragging}
             contentContainerStyle={{
-              padding: 20,
+              paddingHorizontal: gutter,
+              paddingTop: screen === "game" ? space.md : space.xl,
               paddingBottom: 40,
-              gap: 20,
+              gap: space.lg,
               width: "100%",
               maxWidth:
                 screen === "replay"
@@ -759,8 +765,7 @@ function GameApp() {
                 accessibilityRole="alert"
                 onPress={() => setNotice("")}
                 style={{
-                  backgroundColor:
-                    settings.theme === "dark" ? "#493336" : "#FBE6DD",
+                  backgroundColor: t.notice,
                   borderRadius: 14,
                   padding: 16,
                 }}
@@ -790,8 +795,7 @@ function GameApp() {
             )}
             {!profile || screen === "newprofile" ? (
               <>
-                <Tag>Your own little corner</Tag>
-                <Txt size={34} bold>
+                <Txt size={40} display style={{ letterSpacing: -1 }}>
                   Welcome to the club.
                 </Txt>
                 <Txt muted>
@@ -828,130 +832,18 @@ function GameApp() {
                 </Card>
               </>
             ) : screen === "home" ? (
-              <>
-                <View style={{ paddingTop: 12, gap: 8 }}>
-                  <Tag>HELLO, {profile.alias.toUpperCase()}</Tag>
-                  <Txt size={36} bold>
-                    {s.hello}
-                  </Txt>
-                  <Txt muted>{s.tag}</Txt>
-                </View>
-                <Card
-                  style={{
-                    backgroundColor: t.board,
-                    borderColor: t.board,
-                    padding: 26,
-                  }}
-                >
-                  <Row style={{ justifyContent: "space-between" }}>
-                    <View style={{ flex: 1, minWidth: 180, gap: 10 }}>
-                      <Txt size={13} bold style={{ color: "#BBD2D4" }}>
-                        SOLO · UNTIMED
-                      </Txt>
-                      <Txt size={27} bold style={{ color: "#FFFFFF" }}>
-                        {profile.saved
-                          ? "Your next move is waiting."
-                          : "Find your flow."}
-                      </Txt>
-                      <Txt style={{ color: "#D0DEDF" }}>
-                        {profile.saved
-                          ? `${profile.saved.score.toLocaleString()} points · saved on this device`
-                          : "A fresh board. A small moment for yourself."}
-                      </Txt>
-                    </View>
-                    <View
-                      style={{ padding: 10, transform: [{ rotate: "-8deg" }] }}
-                    >
-                      <MiniPiece
-                        seed={313}
-                        index={5}
-                        settings={settings}
-                        size={32}
-                      />
-                    </View>
-                  </Row>
-                  <Button
-                    testID="play-solo"
-                    title={profile.saved ? s.resume + " →" : s.solo + " →"}
-                    onPress={() => start("solo", !!profile.saved)}
-                  />
-                </Card>
-                <Row style={{ alignItems: "stretch" }}>
-                  <Card style={{ flex: 1, minWidth: 240 }}>
-                    <Tag>TOGETHER</Tag>
-                    <Txt size={24} bold>
-                      {s.faceoff}
-                    </Txt>
-                    <Txt muted>
-                      Same pieces. Your strategy. 30 placements, or play across
-                      a day.
-                    </Txt>
-                    <Button
-                      secondary
-                      title="Play with friends ↗"
-                      onPress={() => go("rooms")}
-                    />
-                  </Card>
-                  <Card style={{ flex: 1, minWidth: 240 }}>
-                    <Tag>YOUR PEOPLE</Tag>
-                    <Txt size={24} bold>
-                      {s.league}
-                    </Txt>
-                    <Txt muted>A team to belong to. A season to remember.</Txt>
-                    <Button
-                      secondary
-                      title="Open clubhouse ↗"
-                      onPress={() => {
-                        go("club");
-                        run(refreshClub);
-                      }}
-                    />
-                  </Card>
-                </Row>
-                <Row
-                  style={{
-                    justifyContent: "space-between",
-                    paddingVertical: 8,
-                  }}
-                >
-                  <View>
-                    <Txt muted size={13}>
-                      PERSONAL BEST · SOLO
-                    </Txt>
-                    <Txt size={28} bold>
-                      {profile.best.toLocaleString()}
-                    </Txt>
-                  </View>
-                  <View>
-                    <Txt muted size={13}>
-                      EARNED STARS
-                    </Txt>
-                    <Txt size={28} bold>
-                      ✦ {profile.stars}
-                    </Txt>
-                  </View>
-                </Row>
-                <Row>
-                  <Button
-                    secondary
-                    title={s.learn}
-                    onPress={() => start("learn")}
-                  />
-                  <Button
-                    secondary
-                    title={s.practice}
-                    onPress={() => start("practice")}
-                  />
-                  <Button
-                    secondary
-                    title={s.family}
-                    onPress={() => start("family")}
-                  />
-                </Row>
-                <Txt size={12} muted>
-                  Play at your pace. No daily streak to protect.
-                </Txt>
-              </>
+              <PlayHome
+                profile={profile}
+                onSolo={() => start("solo", !!profile.saved)}
+                onFriends={() => go("rooms")}
+                onClub={() => {
+                  go("club");
+                  run(refreshClub);
+                }}
+                onLearn={() => start("learn")}
+                onPractice={() => start("practice")}
+                onFamily={() => start("family")}
+              />
             ) : screen === "game" ? (
               <>
                 {official && room?.status === "waiting" ? (
@@ -1043,9 +935,14 @@ function GameApp() {
                               <Txt muted size={13}>
                                 {p.id === profile.user?.id ? "YOU" : p.alias}
                               </Txt>
-                              <Txt size={30} bold>
-                                {p.score.toLocaleString()}
-                              </Txt>
+                              <ScoreBeat
+                                score={p.score}
+                                step={p.moves}
+                                size={30}
+                                enabled={
+                                  effective.motion && p.id === profile.user?.id
+                                }
+                              />
                               <Txt muted size={12}>
                                 {p.moves}/30 placed ·{" "}
                                 {p.done
@@ -1069,9 +966,20 @@ function GameApp() {
                       </>
                     )}
                     {!official && (
-                      <Row style={{ justifyContent: "space-between" }}>
+                      <Row
+                        style={{
+                          justifyContent: "space-between",
+                          alignItems: "flex-end",
+                          paddingBottom: space.xs,
+                        }}
+                      >
                         <View>
-                          <Txt size={12} muted>
+                          <Txt
+                            size={12}
+                            bold
+                            muted
+                            style={{ letterSpacing: 0.65 }}
+                          >
                             {mode === "practice"
                               ? "ASSISTED · UNRANKED"
                               : mode === "family"
@@ -1082,24 +990,11 @@ function GameApp() {
                                     ? "GUIDED · THREE MOVES"
                                     : "SOLO · UNTIMED"}
                           </Txt>
-                          <Animated.View
-                            style={{
-                              transform: effective.motion
-                                ? [
-                                    {
-                                      scale: scale.interpolate({
-                                        inputRange: [0, 0.6, 1],
-                                        outputRange: [1, 1.04, 1],
-                                      }),
-                                    },
-                                  ]
-                                : [],
-                            }}
-                          >
-                            <Txt size={40} bold>
-                              {game.score.toLocaleString()}
-                            </Txt>
-                          </Animated.View>
+                          <ScoreBeat
+                            score={game.score}
+                            step={game.moves.length}
+                            enabled={effective.motion}
+                          />
                         </View>
                         <View>
                           <Txt muted size={13}>
@@ -1108,7 +1003,7 @@ function GameApp() {
                               : `${game.moves.length} placed`}
                           </Txt>
                           <Txt size={13} muted>
-                            {game.lines} lines cleared
+                            {lineSummary} cleared
                           </Txt>
                         </View>
                       </Row>
@@ -1173,10 +1068,17 @@ function GameApp() {
                           : selected >= 0
                             ? "Tap where the top-left corner should go."
                             : "Choose a piece to begin."}
-                      {game.last.lines > 0
-                        ? ` · ${game.last.lines} line${game.last.lines > 1 ? "s" : ""} cleared! +${game.last.gain}`
-                        : ""}
                     </Txt>
+                    {game.last.lines > 0 && (
+                      <Txt
+                        bold
+                        size={14}
+                        accessibilityLiveRegion="polite"
+                        style={{ color: t.brand, textAlign: "center" }}
+                      >
+                        {`${game.last.lines} ${game.last.lines === 1 ? "line" : "lines"} cleared · +${game.last.gain}${game.streak > 1 ? ` · ${game.streak} clears in a row` : ""}`}
+                      </Txt>
+                    )}
                     {!game.done && (
                       <Row>
                         <Button
@@ -1264,27 +1166,96 @@ function GameApp() {
               </>
             ) : screen === "result" ? (
               <>
-                <Tag>{resultMode} · COMPLETE</Tag>
-                <Txt size={38} bold>
+                <Txt size={38} display style={{ letterSpacing: -0.8 }}>
                   {mode === "learn"
                     ? "You’re ready to play."
-                    : "A good little game."}
+                    : "Round complete."}
                 </Txt>
-                <Card>
-                  <Txt muted>YOUR SCORE</Txt>
-                  <Txt size={60} bold>
+                <Card
+                  style={{
+                    padding: space.xl,
+                    borderRadius: radius.hero,
+                    backgroundColor:
+                      settings.theme === "contrast" ? t.surface : brand.ink,
+                    borderColor:
+                      settings.theme === "contrast" ? t.border : brand.seam,
+                  }}
+                >
+                  <Row style={{ justifyContent: "space-between" }}>
+                    <View style={{ flexShrink: 1 }}>
+                      <Txt
+                        size={12}
+                        bold
+                        style={{
+                          color:
+                            settings.theme === "contrast"
+                              ? t.muted
+                              : brand.quiet,
+                          letterSpacing: 0.75,
+                        }}
+                      >
+                        {resultMode || "Your score"}
+                      </Txt>
+                    </View>
+                    <ResultMark enabled={effective.motion} />
+                  </Row>
+                  <Txt
+                    size={62}
+                    display
+                    style={{
+                      color:
+                        settings.theme === "contrast" ? t.text : brand.accent,
+                      fontVariant: ["tabular-nums"],
+                      letterSpacing: -1.8,
+                    }}
+                  >
                     {game.score.toLocaleString()}
                   </Txt>
-                  <Txt>
-                    {game.lines} lines · {game.moves.length} placements ·{" "}
+                  {newSoloBest && (
+                    <Txt
+                      bold
+                      size={14}
+                      style={{
+                        color:
+                          settings.theme === "contrast"
+                            ? t.brand
+                            : brand.accent,
+                      }}
+                    >
+                      New solo best
+                    </Txt>
+                  )}
+                  <Txt
+                    style={{
+                      color:
+                        settings.theme === "contrast" ? t.text : brand.paper,
+                    }}
+                  >
+                    {lineSummary} · {game.moves.length}{" "}
+                    {game.moves.length === 1 ? "placement" : "placements"} ·{" "}
                     {game.reason}
                   </Txt>
                   {mode === "family" && familyFirst && (
                     <>
-                      <Txt bold>
+                      <Txt
+                        bold
+                        style={{
+                          color:
+                            settings.theme === "contrast"
+                              ? t.text
+                              : brand.paper,
+                        }}
+                      >
                         Player 1: {familyFirst.score} · Player 2: {game.score}
                       </Txt>
-                      <Txt>
+                      <Txt
+                        style={{
+                          color:
+                            settings.theme === "contrast"
+                              ? t.text
+                              : brand.paper,
+                        }}
+                      >
                         {familyFirst.score === game.score
                           ? "A friendly draw"
                           : familyFirst.score > game.score
@@ -1294,12 +1265,15 @@ function GameApp() {
                       <Tag>Local, unranked · identical pieces</Tag>
                     </>
                   )}
-                  <Txt>
-                    ✦ Progress saved.{" "}
-                    {game.moves.length >= 3
-                      ? Math.max(1, Math.floor(game.lines / 2))
-                      : 0}{" "}
-                    stars earned.
+                  <Txt
+                    bold
+                    style={{
+                      color:
+                        settings.theme === "contrast" ? t.text : brand.paper,
+                    }}
+                  >
+                    ✦ Progress saved. {starsEarned}{" "}
+                    {starsEarned === 1 ? "star" : "stars"} earned.
                   </Txt>
                 </Card>
                 {sessionBadges.map((id) => (
@@ -1309,7 +1283,7 @@ function GameApp() {
                   </Card>
                 ))}
                 <Button
-                  title="Play again — free"
+                  title="Play again"
                   onPress={() => start(mode === "learn" ? "solo" : mode)}
                 />
                 <Row>
@@ -2359,7 +2333,7 @@ function GameApp() {
                     description={
                       systemReduce
                         ? "Your device requests reduced motion; motion stays off."
-                        : "Soft placement, a short clear ripple and score lift."
+                        : "Tile placement, line sweeps, score feedback and screen transitions."
                     }
                     value={settings.motion && !systemReduce}
                     disabled={systemReduce}
@@ -2549,14 +2523,15 @@ function GameApp() {
                 <Button title="Play" onPress={() => go("home")} />
               </Card>
             )}
-          </ScrollView>
+          </Animated.ScrollView>
           {profile && screen !== "game" && (
             <Row
               style={{
                 justifyContent: "space-around",
                 borderTopWidth: 1,
                 borderColor: t.border,
-                padding: 8,
+                padding: space.sm,
+                gap: space.xs,
                 backgroundColor: t.surface,
               }}
             >
@@ -2568,6 +2543,7 @@ function GameApp() {
                 <Pressable
                   key={key}
                   accessibilityRole="tab"
+                  accessibilityLabel={label}
                   accessibilityState={{ selected: screen === key }}
                   onPress={() => {
                     go(key);
@@ -2575,16 +2551,26 @@ function GameApp() {
                   }}
                   style={{
                     minHeight: 52,
-                    minWidth: 80,
+                    flex: 1,
+                    minWidth: 64,
                     alignItems: "center",
                     justifyContent: "center",
                     borderRadius: 14,
                     backgroundColor: screen === key ? t.soft : "transparent",
-                    padding: 8,
+                    paddingVertical: space.xs,
+                    paddingHorizontal: space.xs,
                   }}
                 >
-                  <Txt bold>
-                    {icon} {label}
+                  <Txt
+                    size={16}
+                    accessibilityElementsHidden
+                    aria-hidden
+                    style={{ color: screen === key ? t.brand : t.muted }}
+                  >
+                    {icon}
+                  </Txt>
+                  <Txt size={13} bold style={{ textAlign: "center" }}>
+                    {label}
                   </Txt>
                 </Pressable>
               ))}
@@ -2683,7 +2669,7 @@ function GameApp() {
           </View>
         </Modal>
         <Modal visible={handoff} transparent={false} onRequestClose={() => {}}>
-          <Design.Provider value={settings}>
+          <Design.Provider value={effective}>
             <SafeAreaView
               style={{
                 flex: 1,

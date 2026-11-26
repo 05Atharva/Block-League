@@ -1,4 +1,10 @@
-import React, { useRef, useEffect, useState } from "react";
+import React, {
+  useCallback,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   View,
   Text,
@@ -7,12 +13,13 @@ import {
   PanResponder,
   StyleSheet,
   AccessibilityInfo,
-  Platform,
 } from "react-native";
 import { piece, colour, fits } from "../../shared/engine";
 import type { Game } from "../../shared/engine";
 import { themes, palettes, motionSpec } from "./design";
 import type { Settings } from "./design";
+import { animate } from "./motion";
+import { Txt } from "./ui";
 type Props = {
   game: Game;
   settings: Settings;
@@ -25,6 +32,7 @@ type Props = {
   small?: boolean;
 };
 const symbols = ["", "●", "╱", "◆", "＋", "•", "╳"];
+const boardInset = 8;
 export function MiniPiece({
   seed,
   index,
@@ -94,20 +102,31 @@ function TrayPiece({
   drag: (x: number, y: number, active: boolean, s: number) => void;
   disabled?: boolean;
 }) {
-  const ref = useRef({ drag, select, disabled });
-  ref.current = { drag, select, disabled };
-  const pan = useRef(
-    PanResponder.create({
-      onStartShouldSetPanResponder: () => !ref.current.disabled,
-      onMoveShouldSetPanResponder: (_, g) =>
-        Math.abs(g.dx) + Math.abs(g.dy) > 6,
-      onPanResponderGrant: () => ref.current.select(i),
-      onPanResponderMove: (_, g) => ref.current.drag(g.moveX, g.moveY, true, i),
-      onPanResponderRelease: (_, g) =>
-        ref.current.drag(g.moveX, g.moveY, false, i),
-      onPanResponderTerminate: () => ref.current.drag(0, 0, false, i),
-    }),
-  ).current;
+  const pan = useMemo(
+    () =>
+      PanResponder.create({
+        onStartShouldSetPanResponder: () => !disabled,
+        onMoveShouldSetPanResponder: (_, g) =>
+          !disabled && Math.abs(g.dx) + Math.abs(g.dy) > 6,
+        onPanResponderGrant: () => select(i),
+        onPanResponderMove: (_, g) => drag(g.moveX, g.moveY, true, i),
+        onPanResponderRelease: (_, g) => drag(g.moveX, g.moveY, false, i),
+        onPanResponderTerminate: () => drag(0, 0, false, i),
+      }),
+    [disabled, drag, i, select],
+  );
+  const [lift] = useState(() => new Animated.Value(0));
+  const chosen = selected === i && index !== null;
+  const motion = settings.motion && !settings.lowEffects;
+  useLayoutEffect(() => {
+    if (!motion) {
+      lift.setValue(0);
+      return;
+    }
+    const animation = animate(lift, chosen ? 1 : 0, motionSpec.release);
+    animation.start();
+    return () => animation.stop();
+  }, [chosen, lift, motion]);
   const t = themes[settings.theme];
   return (
     <Pressable
@@ -124,26 +143,53 @@ function TrayPiece({
       style={[
         styles.slot,
         {
-          borderColor: selected === i ? t.brand : t.border,
-          backgroundColor: selected === i ? t.soft : t.surface,
-          opacity: index === null ? 0.45 : 1,
-          borderWidth: selected === i ? 2 : 1,
+          borderColor: chosen ? t.brand : t.border,
+          backgroundColor: chosen ? t.soft : t.surface,
+          opacity: index === null ? 0.68 : 1,
+          borderWidth: chosen ? 2 : 1,
         },
       ]}
     >
       {index === null ? (
         <Text style={{ color: t.muted }}>✓</Text>
       ) : (
-        <MiniPiece
-          seed={game.seed}
-          index={index}
-          beginner={game.beginner}
-          settings={settings}
-        />
+        <Animated.View
+          pointerEvents="none"
+          style={{
+            transform: motion
+              ? [
+                  {
+                    translateY: lift.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [0, -3],
+                    }),
+                  },
+                ]
+              : [],
+          }}
+        >
+          <MiniPiece
+            seed={game.seed}
+            index={index}
+            beginner={game.beginner}
+            settings={settings}
+            size={16}
+          />
+        </Animated.View>
       )}
-      <Text style={{ fontSize: 11, color: t.muted, marginTop: 6 }}>
-        {index === null ? "Placed" : selected === i ? "Selected" : `${i + 1}`}
-      </Text>
+      {!chosen && index !== null ? null : (
+        <Txt
+          size={11}
+          bold
+          style={{
+            color: chosen ? t.brand : t.muted,
+            marginTop: 4,
+            textAlign: "center",
+          }}
+        >
+          {index === null ? "Placed" : "Selected"}
+        </Txt>
+      )}
     </Pressable>
   );
 }
@@ -162,36 +208,45 @@ export function Board({
     board = useRef<React.ElementRef<typeof View>>(null),
     bounds = useRef({ x: 0, y: 0, w: 320 }),
     [width, setWidth] = useState(320);
-  const settle = useRef(new Animated.Value(1)).current,
-    clear = useRef(new Animated.Value(1)).current;
-  const [clearCells, setClearCells] = useState<number[]>([]);
-  const prev = useRef(-1);
-  const enabled = settings.motion && !settings.lowEffects;
-  useEffect(() => {
-    if (prev.current === game.moves.length) return;
-    prev.current = game.moves.length;
-    if (!enabled) {
-      setClearCells([]);
+  const [settle] = useState(() => new Animated.Value(1));
+  const [clear] = useState(() => new Animated.Value(1));
+  const [animatedMove, setAnimatedMove] = useState<string>();
+  const steps = game.moves.length;
+  const lastMove = game.moves.at(-1);
+  const moveId = lastMove?.id;
+  const cleared = game.last.cleared.length;
+  const seed = game.seed;
+  const previous = useRef({ seed, steps, id: moveId });
+  const enabled = settings.motion && !settings.lowEffects && !small;
+  useLayoutEffect(() => {
+    const before = previous.current;
+    previous.current = { seed, steps, id: moveId };
+    if (
+      !moveId ||
+      !enabled ||
+      before.seed !== seed ||
+      steps !== before.steps + 1 ||
+      moveId === before.id
+    )
       return;
-    }
     settle.setValue(0);
     clear.setValue(0);
-    setClearCells(game.last.cleared);
-    Animated.parallel([
-      Animated.spring(settle, {
-        toValue: 1,
-        damping: 17,
-        stiffness: 270,
-        mass: 0.5,
-        useNativeDriver: true,
-      }),
-      Animated.timing(clear, {
-        toValue: 1,
-        duration: motionSpec.clear,
-        useNativeDriver: true,
-      }),
-    ]).start();
-  }, [game.moves.length, enabled]);
+    setAnimatedMove(moveId);
+    const animation = Animated.parallel([
+      animate(settle, 1, motionSpec.settle),
+      ...(cleared ? [animate(clear, 1, motionSpec.clear)] : []),
+    ]);
+    animation.start(({ finished }) => {
+      if (finished) setAnimatedMove(undefined);
+    });
+    return () => {
+      animation.stop();
+      clear.setValue(1);
+      settle.setValue(1);
+    };
+  }, [clear, cleared, enabled, seed, moveId, settle, steps]);
+  const active =
+    enabled && animatedMove !== undefined && animatedMove === moveId;
   const preview =
     selected >= 0 && game.tray[selected] != null && anchor
       ? piece(game.seed, game.tray[selected]!, game.beginner).map(([r, c]) => [
@@ -200,19 +255,34 @@ export function Board({
         ])
       : [];
   const valid = anchor && fits(game, selected, anchor[0], anchor[1]);
-  function drag(x: number, y: number, active: boolean, s: number) {
-    onDragging?.(active);
-    if (active || x || y) {
-      const b = bounds.current;
-      const c = Math.floor((x - b.x - 8) / ((b.w - 16) / 8)),
-        r = Math.floor((y - b.y - 8) / ((b.w - 16) / 8));
-      if (r >= 0 && r < 8 && c >= 0 && c < 8) {
-        setSelected(s);
-        setAnchor([r, c]);
+  const select = useCallback(
+    (slot: number) => {
+      board.current?.measureInWindow(
+        (x, y, w) => (bounds.current = { x, y, w }),
+      );
+      setSelected(slot);
+      setAnchor(null);
+    },
+    [setAnchor, setSelected],
+  );
+  const drag = useCallback(
+    (x: number, y: number, active: boolean, slot: number) => {
+      onDragging?.(active);
+      if (active || x || y) {
+        const b = bounds.current;
+        const c = Math.floor(
+            (x - b.x - boardInset) / ((b.w - 2 * boardInset) / 8),
+          ),
+          r = Math.floor((y - b.y - boardInset) / ((b.w - 2 * boardInset) / 8));
+        if (r >= 0 && r < 8 && c >= 0 && c < 8) {
+          setSelected(slot);
+          setAnchor([r, c]);
+        }
       }
-    }
-  }
-  const cell = (width - 16) / 8;
+    },
+    [onDragging, setAnchor, setSelected],
+  );
+  const cell = (width - 2 * boardInset) / 8;
   return (
     <View style={{ gap: 16 }}>
       <View
@@ -225,7 +295,10 @@ export function Board({
             (x, y, w) => (bounds.current = { x, y, w }),
           );
         }}
-        style={[styles.board, { backgroundColor: t.board }]}
+        style={[
+          styles.board,
+          { backgroundColor: t.board, borderColor: t.boardBorder },
+        ]}
       >
         {Array.from({ length: 8 }, (_, r) => (
           <View key={r} style={{ flexDirection: "row" }}>
@@ -233,8 +306,17 @@ export function Board({
               const i = r * 8 + c,
                 v = game.board[i],
                 ghost = preview.some(([a, b]) => a === r && b === c),
-                just = game.last.cells.includes(i),
-                isClear = clearCells.includes(i);
+                just = active && v > 0 && game.last.cells.includes(i),
+                isClear = active && game.last.cleared.includes(i);
+              const wave =
+                isClear && lastMove
+                  ? Math.min(
+                      0.32,
+                      (Math.abs(lastMove.row - r) +
+                        Math.abs(lastMove.col - c)) *
+                        0.027,
+                    )
+                  : 0;
               return (
                 <Pressable
                   key={c}
@@ -249,7 +331,7 @@ export function Board({
                       );
                     setAnchor([r, c]);
                   }}
-                  style={{ width: cell, height: cell, padding: 1.5 }}
+                  style={{ width: cell, height: cell, padding: 1.25 }}
                 >
                   <Animated.View
                     style={{
@@ -257,40 +339,46 @@ export function Board({
                       borderRadius: 5,
                       backgroundColor: ghost
                         ? valid
-                          ? "#BCF0D7"
-                          : "#F3B4B1"
+                          ? t.valid
+                          : t.invalid
                         : v
                           ? palettes[settings.palette][v - 1]
                           : t.empty,
-                      borderWidth: ghost
-                        ? 2
-                        : settings.theme === "contrast"
-                          ? 1
-                          : 0,
+                      borderWidth: ghost ? 2 : 1,
                       borderColor: ghost
                         ? valid
-                          ? "#106344"
-                          : "#912B28"
-                        : "#666",
-                      borderTopWidth: v ? 2 : ghost ? 2 : 0,
-                      borderTopColor: v
-                        ? "#FFFFFF60"
-                        : ghost
-                          ? "#106344"
-                          : "transparent",
+                          ? t.onValid
+                          : t.onInvalid
+                        : v
+                          ? "#00000018"
+                          : t.boardEdge,
+                      borderTopWidth: v && !ghost ? 2 : ghost ? 2 : 1,
+                      borderTopColor:
+                        v && !ghost
+                          ? "#FFFFFF60"
+                          : ghost
+                            ? valid
+                              ? t.onValid
+                              : t.onInvalid
+                            : t.boardEdge,
                       alignItems: "center",
                       justifyContent: "center",
-                      transform:
-                        just && enabled
-                          ? [
-                              {
-                                scale: settle.interpolate({
-                                  inputRange: [0, 0.65, 1],
-                                  outputRange: [0.82, 1.06, 1],
-                                }),
-                              },
-                            ]
-                          : [],
+                      transform: just
+                        ? [
+                            {
+                              scaleY: settle.interpolate({
+                                inputRange: [0, 0.5, 1],
+                                outputRange: [0.78, 1.045, 1],
+                              }),
+                            },
+                            {
+                              scaleX: settle.interpolate({
+                                inputRange: [0, 0.5, 1],
+                                outputRange: [1.04, 0.99, 1],
+                              }),
+                            },
+                          ]
+                        : [],
                     }}
                   >
                     {(settings.patterns || settings.theme === "contrast") &&
@@ -309,7 +397,7 @@ export function Board({
                     {ghost && (
                       <Text
                         style={{
-                          color: valid ? "#106344" : "#912B28",
+                          color: valid ? t.onValid : t.onInvalid,
                           fontWeight: "900",
                         }}
                       >
@@ -318,29 +406,30 @@ export function Board({
                       </Text>
                     )}
                   </Animated.View>
-                  {isClear && enabled && (
+                  {isClear && (
                     <Animated.View
+                      testID="line-clear-wave"
                       pointerEvents="none"
                       style={{
                         position: "absolute",
                         inset: 2,
-                        backgroundColor: "#FFE9A0",
+                        backgroundColor: t.clear,
                         borderRadius: 5,
                         opacity: clear.interpolate({
-                          inputRange: [0, 0.3, 1],
-                          outputRange: [0.9, 0.6, 0],
+                          inputRange: [
+                            0,
+                            wave + 0.02,
+                            wave + 0.16,
+                            wave + 0.58,
+                            1,
+                          ],
+                          outputRange: [0, 0, 0.82, 0, 0],
                         }),
                         transform: [
                           {
-                            scale: clear.interpolate({
-                              inputRange: [0, 1],
-                              outputRange: [1, 0.3],
-                            }),
-                          },
-                          {
-                            rotate: clear.interpolate({
-                              inputRange: [0, 1],
-                              outputRange: ["0deg", "12deg"],
+                            scaleY: clear.interpolate({
+                              inputRange: [0, wave + 0.16, wave + 0.58, 1],
+                              outputRange: [0.76, 1, 0.1, 0.1],
                             }),
                           },
                         ],
@@ -364,13 +453,7 @@ export function Board({
               settings={settings}
               selected={selected}
               disabled={disabled}
-              select={(s: number) => {
-                board.current?.measureInWindow(
-                  (x, y, w) => (bounds.current = { x, y, w }),
-                );
-                setSelected(s);
-                setAnchor(null);
-              }}
+              select={select}
               drag={drag}
             />
           ))}
@@ -381,18 +464,17 @@ export function Board({
 }
 const styles = StyleSheet.create({
   board: {
-    padding: 8,
-    borderRadius: 20,
+    padding: boardInset - 1,
+    borderRadius: 18,
     borderWidth: 1,
-    borderColor: "#172D36",
     overflow: "hidden",
   },
   slot: {
     flex: 1,
-    minHeight: 104,
-    borderRadius: 18,
+    minHeight: 76,
+    borderRadius: 13,
     alignItems: "center",
     justifyContent: "center",
-    padding: 10,
+    padding: 7,
   },
 });

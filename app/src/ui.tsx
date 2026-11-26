@@ -1,20 +1,30 @@
-import React, { createContext, useContext } from "react";
+import React, { createContext, useContext, useEffect, useState } from "react";
 import {
+  Animated,
   Text,
   View,
   Pressable,
   TextInput,
   Switch,
-  StyleSheet,
 } from "react-native";
-import { defaults, themes } from "./design";
+import { defaults, fonts, motionSpec, radius, space, themes } from "./design";
 import type { Settings } from "./design";
 import { translate } from "./locales";
+import { animate, curves } from "./motion";
 export const Design = createContext<Settings>(defaults);
+
+function fontFamily(s: Settings, bold = false, display = false) {
+  if (s.language !== "en") return "Devanagari";
+  if (s.readable) return "Atkinson";
+  if (display) return fonts.display;
+  return bold ? fonts.strong : fonts.body;
+}
+
 export function Txt({
   children,
   size = 16,
   bold = false,
+  display = bold && size >= 28,
   muted = false,
   style,
   ...props
@@ -26,16 +36,10 @@ export function Txt({
       {...props}
       style={[
         {
-          fontFamily:
-            s.language !== "en"
-              ? "Devanagari"
-              : s.readable
-                ? "Atkinson"
-                : bold
-                  ? "NunitoBold"
-                  : "Nunito",
+          fontFamily: fontFamily(s, bold, display),
           fontSize: size * s.textSize,
-          lineHeight: size * s.textSize * 1.4,
+          lineHeight:
+            size * s.textSize * (display && s.language === "en" ? 1.08 : 1.36),
           color: muted ? t.muted : t.text,
           flexShrink: 1,
         },
@@ -55,9 +59,16 @@ export function Button({
   disabled = false,
   testID,
   style,
+  indicator,
 }: any) {
   const s = useContext(Design),
     t = themes[s.theme];
+  const [press] = useState(() => new Animated.Value(1));
+  const motion = s.motion && !s.lowEffects;
+  useEffect(() => {
+    if (!motion || disabled) press.setValue(1);
+    return () => press.stopAnimation();
+  }, [disabled, motion, press]);
   return (
     <Pressable
       testID={testID}
@@ -65,38 +76,60 @@ export function Button({
       accessibilityState={{ disabled: !!disabled }}
       disabled={disabled}
       onPress={onPress}
+      onPressIn={
+        motion
+          ? () => animate(press, 0.96, motionSpec.press, curves.exit).start()
+          : undefined
+      }
+      onPressOut={
+        motion ? () => animate(press, 1, motionSpec.release).start() : undefined
+      }
       style={({ pressed }) => [
         {
           minHeight: 52,
           maxWidth: "100%",
           flexShrink: 1,
-          paddingHorizontal: 18,
-          paddingVertical: 12,
-          borderRadius: 16,
-          backgroundColor: secondary ? t.soft : t.brand,
+          paddingHorizontal: space.lg,
+          paddingVertical: space.md,
+          borderRadius: radius.button,
+          backgroundColor: secondary ? t.surface : t.action,
           borderWidth: 1,
-          borderColor: secondary ? t.border : t.brand,
+          borderColor: secondary ? t.border : t.action,
           alignItems: "center",
           justifyContent: "center",
-          opacity: disabled ? 0.4 : pressed ? 0.78 : 1,
-          transform: [{ scale: pressed ? 0.98 : 1 }],
+          opacity: disabled ? 0.48 : pressed ? 0.84 : 1,
         },
         style,
       ]}
     >
-      <Txt
-        bold
+      <Animated.View
         style={{
-          color: secondary
-            ? t.text
-            : s.theme === "light" || s.theme === "contrast"
-              ? "#FFFFFF"
-              : "#14222B",
-          textAlign: "center",
+          maxWidth: "100%",
+          flexDirection: "row",
+          alignItems: "center",
+          gap: space.sm,
+          transform: motion ? [{ scale: press }] : [],
         }}
       >
-        {title}
-      </Txt>
+        <Txt
+          bold
+          style={{
+            color: secondary ? t.text : t.onAction,
+            textAlign: "center",
+          }}
+        >
+          {title}
+        </Txt>
+        {indicator && (
+          <Txt
+            accessibilityElementsHidden
+            aria-hidden
+            style={{ color: secondary ? t.text : t.onAction }}
+          >
+            {indicator}
+          </Txt>
+        )}
+      </Animated.View>
     </Pressable>
   );
 }
@@ -108,11 +141,11 @@ export function Card({ children, style }: any) {
       style={[
         {
           backgroundColor: t.surface,
-          borderRadius: 24,
-          padding: 22,
+          borderRadius: radius.card,
+          padding: space.lg,
           borderWidth: 1,
           borderColor: t.border,
-          gap: 12,
+          gap: space.md,
         },
         style,
       ]}
@@ -121,9 +154,17 @@ export function Card({ children, style }: any) {
     </View>
   );
 }
-export function Input({ label, value, onChangeText, ...props }: any) {
+export function Input({
+  label,
+  value,
+  onChangeText,
+  onFocus,
+  onBlur,
+  ...props
+}: any) {
   const s = useContext(Design),
     t = themes[s.theme];
+  const [focused, setFocused] = useState(false);
   return (
     <View style={{ gap: 6 }}>
       <Txt bold size={14}>
@@ -134,17 +175,25 @@ export function Input({ label, value, onChangeText, ...props }: any) {
         value={value}
         onChangeText={onChangeText}
         placeholderTextColor={t.muted}
+        onFocus={(event) => {
+          setFocused(true);
+          onFocus?.(event);
+        }}
+        onBlur={(event) => {
+          setFocused(false);
+          onBlur?.(event);
+        }}
         {...props}
         style={{
           minHeight: 52,
-          borderRadius: 14,
+          borderRadius: radius.field,
           borderWidth: 1,
-          borderColor: t.border,
+          borderColor: focused ? t.brand : t.border,
           backgroundColor: t.surface,
           padding: 14,
           color: t.text,
           fontSize: 16 * s.textSize,
-          fontFamily: "Nunito",
+          fontFamily: fontFamily(s),
         }}
       />
     </View>
@@ -174,6 +223,8 @@ export function Toggle({
   onValueChange,
   disabled,
 }: any) {
+  const { theme } = useContext(Design);
+  const t = themes[theme];
   return (
     <Row style={{ justifyContent: "space-between", paddingVertical: 10 }}>
       <View style={{ flex: 1, minWidth: 140 }}>
@@ -187,6 +238,7 @@ export function Toggle({
       <Switch
         accessibilityLabel={label}
         value={value}
+        trackColor={{ false: t.border, true: t.brand }}
         onValueChange={onValueChange}
         disabled={disabled}
       />
@@ -201,8 +253,8 @@ export function Tag({ children }: any) {
       style={{
         alignSelf: "flex-start",
         backgroundColor: t.soft,
-        paddingHorizontal: 10,
-        paddingVertical: 5,
+        paddingHorizontal: space.sm,
+        paddingVertical: space.xs,
         borderRadius: 8,
       }}
     >

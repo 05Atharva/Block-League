@@ -1,1 +1,5 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024"><rect width="1024" height="1024" rx="224" fill="#233942"/><rect x="220" y="220" width="260" height="260" rx="60" fill="#9C7CEC"/><rect x="520" y="220" width="260" height="260" rx="60" fill="#46B9A7"/><rect x="220" y="520" width="260" height="260" rx="60" fill="#F17854"/></svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="Block League">
+  <rect width="128" height="128" rx="29" fill="#211A2B"/>
+  <path d="M30 34a8 8 0 0 1 8-8h17a8 8 0 0 1 8 8v38h29a8 8 0 0 1 8 8v15a8 8 0 0 1-8 8H38a8 8 0 0 1-8-8Z" fill="#FFA184"/>
+  <rect x="76" y="31" width="30" height="30" rx="7" transform="rotate(9 91 46)" fill="#DFEF9D"/>
+</svg>

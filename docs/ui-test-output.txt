@@ -1,0 +1,18 @@
+
+> block-league-workspace@0.3.0 test:ui
+> node --experimental-strip-types tests/ui.mjs
+
+Block League server: http://127.0.0.1:46681
+PASS Profile creation and one-tap Play
+PASS Tap, legal preview, confirmed placement and score update
+PASS Autosave survives a complete page reload
+PASS Free practice hint and undo
+PASS Three-placement guided tutorial completes
+PASS Settings layout at 200% text and 320 / 360 / 390 / 768 widths
+PASS Hindi and Marathi core settings render with Devanagari
+PASS Family handoff hides first attempt and gives identical pieces
+PASS Real PNG result card exports at 1080×1350
+PASS Family profiles keep progress separate; child profile has no reward-ad offer
+PASS Two browser clients create/join, ready, play, finalise and view both replays
+PASS No browser runtime errors
+Temporary screenshots were retained only in the test environment.

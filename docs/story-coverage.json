@@ -1,0 +1,502 @@
+[
+  {
+    "id": "US-01",
+    "story": "As a new child player, I want to learn by placing three guided blocks, so that I can start without reading long instructions.",
+    "feature": "Interactive tutorial",
+    "release": "MVP",
+    "acceptance": "Tutorial can be replayed and completed without audio.",
+    "status": "Implemented",
+    "implementation": "Tutorial: select, preview, confirm three moves; help is replayable.",
+    "validation": "UI: guided tutorial completes."
+  },
+  {
+    "id": "US-02",
+    "story": "As a child learning the game, I want to play an untimed beginner board with simpler pieces, so that I can practise without feeling rushed.",
+    "feature": "Beginner practice",
+    "release": "MVP",
+    "acceptance": "Difficulty is visibly labelled and results stay outside ranked tables.",
+    "status": "Implemented",
+    "implementation": "Separate untimed beginner generator; practice is labelled assisted/unranked.",
+    "validation": "Engine simple-pieces and UI practice tests."
+  },
+  {
+    "id": "US-03",
+    "story": "As a child who recognises shapes more easily than colours, I want to identify blocks using outlines and patterns, so that I can understand the board without relying on colour.",
+    "feature": "Pattern mode",
+    "release": "MVP",
+    "acceptance": "All occupied cells remain distinguishable in every theme.",
+    "status": "Implemented; device QA pending",
+    "implementation": "Cell symbols + boundaries in pattern/high-contrast mode.",
+    "validation": "Code and browser inspection; physical vision/colour-blind usability pending."
+  },
+  {
+    "id": "US-04",
+    "story": "As a child sharing a family device, I want to use a separate local profile, so that my progress does not overwrite my family's.",
+    "feature": "Family profiles",
+    "release": "Later",
+    "acceptance": "Switching profiles restores the correct progress and settings.",
+    "status": "Implemented",
+    "implementation": "Profile-scoped saved game, settings, history, stars and records.",
+    "validation": "Storage round-trip and profile-switch UI checks."
+  },
+  {
+    "id": "US-05",
+    "story": "As a child player, I want to earn predictable cosmetic stars by solving puzzles, so that I can see my progress without purchases or ads.",
+    "feature": "Earned cosmetics",
+    "release": "MVP",
+    "acceptance": "Rewards never require an ad or provide ranked advantages.",
+    "status": "Implemented",
+    "implementation": "A completed round with at least three placements earns stars; Garden at five.",
+    "validation": "Code rules; no payment or ad path required."
+  },
+  {
+    "id": "US-06",
+    "story": "As a child playing with family, I want to join a guardian-approved private challenge, so that I can play with people my family knows.",
+    "feature": "Protected rooms",
+    "release": "MVP",
+    "acceptance": "Child profiles cannot enter public matchmaking or searchable teams.",
+    "status": "Pilot implementation",
+    "implementation": "Private rooms only; server blocks child social play until guardian PIN approval.",
+    "validation": "Server guardian tests pass. Guardian identity/consent is not verified."
+  },
+  {
+    "id": "US-07",
+    "story": "As a child player, I want to use preset friendly reactions, so that I can celebrate without exchanging personal details.",
+    "feature": "Preset reactions",
+    "release": "MVP",
+    "acceptance": "No free-text chat, photo uploads or direct messages.",
+    "status": "Implemented",
+    "implementation": "Allowlisted reactions only; no free-text chat, DMs or photo upload.",
+    "validation": "Preset/rate-limit server tests."
+  },
+  {
+    "id": "US-08",
+    "story": "As a child who gets stuck, I want to receive a free practice hint, so that I can learn what a useful move looks like.",
+    "feature": "Practice hints",
+    "release": "MVP",
+    "acceptance": "Hints are unavailable in scored competitive attempts.",
+    "status": "Implemented",
+    "implementation": "Free practice hint; no ranked help/undo control.",
+    "validation": "Practice UI and ranked-integrity server tests."
+  },
+  {
+    "id": "US-09",
+    "story": "As a child player, I want to see a clear stopping point after a round, so that I can leave without losing earned rewards.",
+    "feature": "Round completion",
+    "release": "MVP",
+    "acceptance": "No streak-loss or team-loss warning is shown on exit.",
+    "status": "Implemented",
+    "implementation": "Round result and voluntary exit preserve rewards.",
+    "validation": "Tutorial/results UI; no punitive streak/exit mechanics."
+  },
+  {
+    "id": "US-10",
+    "story": "As a guardian of a child aged 7–12, I want to set play reminders and approve sharing or social access, so that I can manage my child's participation.",
+    "feature": "Guardian controls",
+    "release": "MVP",
+    "acceptance": "Reminders work locally; external sharing is gated for child profiles.",
+    "status": "Pilot implementation",
+    "implementation": "PIN-gated online social/sharing settings and child reminder changes.",
+    "validation": "Guardian server tests. Local profile switching is not a secure parental boundary."
+  },
+  {
+    "id": "US-11",
+    "story": "As a school student, I want to join a private room with a short code, so that I can challenge known friends easily.",
+    "feature": "Room codes",
+    "release": "MVP",
+    "acceptance": "Expired codes fail clearly and hosts can remove unstarted seats.",
+    "status": "Implemented",
+    "implementation": "Expiring 8-character codes; host removes unstarted guest.",
+    "validation": "Room expiry and host removal tests."
+  },
+  {
+    "id": "US-12",
+    "story": "As a student competing with friends, I want to receive the same piece sequence and scoring rules, so that the result reflects our decisions.",
+    "feature": "Deterministic face-off",
+    "release": "MVP",
+    "acceptance": "Server replay produces the recorded score for both players.",
+    "status": "Implemented",
+    "implementation": "One shared versioned seed/shape/scoring engine and authoritative replay.",
+    "validation": "500 simulations plus two-client HTTP/UI tests."
+  },
+  {
+    "id": "US-13",
+    "story": "As a student with homework and limited time, I want to choose a short turn-limited challenge, so that I know roughly how much commitment I am making.",
+    "feature": "30-placement duel",
+    "release": "MVP",
+    "acceptance": "Turn allowance and overall expiry are visible before joining.",
+    "status": "Implemented",
+    "implementation": "30-placement limit and live/async window visible before entry.",
+    "validation": "Limit tests and room UI."
+  },
+  {
+    "id": "US-14",
+    "story": "As a student on an unstable connection, I want to rejoin a match after a brief drop, so that one network interruption does not immediately end my game.",
+    "feature": "Reconnection",
+    "release": "MVP",
+    "acceptance": "Reconnect within the grace period restores confirmed server state.",
+    "status": "Implemented",
+    "implementation": "Polling resumes authoritative state within live 60-second grace.",
+    "validation": "Clock-controlled reconnect tests; UI shows reconnection state."
+  },
+  {
+    "id": "US-15",
+    "story": "As a student who enjoys improvement, I want to review a completed match's decisive moves, so that I can understand how to play better.",
+    "feature": "Post-match replay",
+    "release": "MVP",
+    "acceptance": "Opponent moves are revealed only after both attempts are final.",
+    "status": "Implemented",
+    "implementation": "Move-by-move post-final replay and largest scoring move jump.",
+    "validation": "Replay equality and two-client replay UI checks."
+  },
+  {
+    "id": "US-16",
+    "story": "As a student who enjoys team play, I want to join a private friend team, so that we can compete together.",
+    "feature": "Teams",
+    "release": "V1.1",
+    "acceptance": "Only approved members occupy roster slots.",
+    "status": "Implemented",
+    "implementation": "Private team codes, captain-approved requests, three-player cap.",
+    "validation": "Team membership/roster tests."
+  },
+  {
+    "id": "US-17",
+    "story": "As a student who dislikes public pressure, I want to keep my results visible only to invited friends, so that I can compete comfortably.",
+    "feature": "Privacy controls",
+    "release": "MVP",
+    "acceptance": "Profiles are private by default; no real-name requirement.",
+    "status": "Implemented",
+    "implementation": "Aliases and authenticated membership checks; private by default.",
+    "validation": "Outsider access and recovery isolation tests."
+  },
+  {
+    "id": "US-18",
+    "story": "As a student with limited data, I want to practise offline and submit eligible challenges when connected, so that I can play without a constant connection.",
+    "feature": "Offline practice",
+    "release": "MVP",
+    "acceptance": "Offline practice is clearly unranked; ranked submission needs verification.",
+    "status": "Partial",
+    "implementation": "Native offline practice/solo; online attempts require server confirmation.",
+    "validation": "Autosave/hint tests. Offline competitive move submission is not implemented."
+  },
+  {
+    "id": "US-19",
+    "story": "As a student who wants recognition, I want to earn skill badges for difficult verified achievements, so that my achievements represent ability.",
+    "feature": "Skill badges",
+    "release": "V1.1",
+    "acceptance": "Badge rules are visible and cannot be satisfied by ad-earned tools.",
+    "status": "Implemented",
+    "implementation": "Server-verified First/Cross/Five-Clear/Clean Duel/Team/Champion badges; local badges labelled.",
+    "validation": "Engine badge conditions and league champion tests."
+  },
+  {
+    "id": "US-20",
+    "story": "As a student taking a break, I want to mute competition reminders temporarily, so that the game fits around my priorities.",
+    "feature": "Quiet hours",
+    "release": "V1.1",
+    "acceptance": "Disabled reminders are not replaced with urgency notifications.",
+    "status": "Partial",
+    "implementation": "Quiet mode mutes foreground reminders without urgency replacements.",
+    "validation": "Settings code. Scheduled push notifications/clock-based quiet-hour windows are not implemented."
+  },
+  {
+    "id": "US-21",
+    "story": "As a college student, I want to create a private league and invite classmates, so that we have an organised competition.",
+    "feature": "League creation",
+    "release": "V1.1",
+    "acceptance": "Invites, roster limits and entry deadline are shown.",
+    "status": "Implemented",
+    "implementation": "Private 4- or 8-team leagues, invitation, entry deadline and roster limits.",
+    "validation": "League API tests."
+  },
+  {
+    "id": "US-22",
+    "story": "As a team captain, I want to lock a roster before the season starts, so that fixtures stay fair.",
+    "feature": "Roster management",
+    "release": "V1.1",
+    "acceptance": "Post-lock replacements follow an explicit recorded rule.",
+    "status": "Implemented",
+    "implementation": "Three approved members; roster locks on entry. No mid-season substitutions.",
+    "validation": "Post-lock edit rejection tests."
+  },
+  {
+    "id": "US-23",
+    "story": "As a competitive player, I want to see standings with published tie-breakers, so that I understand how qualification works.",
+    "feature": "League standings",
+    "release": "V1.1",
+    "acceptance": "Equal records resolve by declared rules without hidden changes.",
+    "status": "Implemented",
+    "implementation": "League points, subgroup head-to-head reapplication, individual wins, explicit deciders.",
+    "validation": "Standings and tied qualification tests."
+  },
+  {
+    "id": "US-24",
+    "story": "As a league organiser, I want to run qualifiers, an eliminator and a final, so that the season has meaningful progression.",
+    "feature": "Championship playoffs",
+    "release": "Later",
+    "acceptance": "Bracket advancement follows stored results and defined seeding.",
+    "status": "Implemented",
+    "implementation": "Server results advance Qualifier 1, Eliminator, Qualifier 2 and Final.",
+    "validation": "Full 8-team simulated season from real validated moves."
+  },
+  {
+    "id": "US-25",
+    "story": "As a player proud of a good match, I want to share a spoiler-free result with a replayable challenge link, so that friends can try the same contest.",
+    "feature": "Share cards",
+    "release": "MVP",
+    "acceptance": "No opponent identity is included without that player's permission.",
+    "status": "Implemented; native QA pending",
+    "implementation": "Opt-in PNG card and spoiler-free same-seed practice link; no opponent identity.",
+    "validation": "Browser PNG export test. Native sharing handoff needs phone verification."
+  },
+  {
+    "id": "US-26",
+    "story": "As a player comparing strategies, I want to view side-by-side replays after a match, so that I can learn from the difference in our decisions.",
+    "feature": "Replay comparison",
+    "release": "V1.1",
+    "acceptance": "Replay works with the original game-rules version.",
+    "status": "Implemented",
+    "implementation": "Two boards at a shared move index; side-by-side wide, stacked narrow.",
+    "validation": "Two-client final replay UI; exact shared-engine replay tests."
+  },
+  {
+    "id": "US-27",
+    "story": "As a busy college student, I want to answer a friend challenge asynchronously, so that we do not need to be online together.",
+    "feature": "Asynchronous duel",
+    "release": "V1.1",
+    "acceptance": "Both attempts use the stored sequence and equal rules.",
+    "status": "Implemented",
+    "implementation": "24-hour asynchronous private duels, identical sequences and limits.",
+    "validation": "Async expiry and sequence tests."
+  },
+  {
+    "id": "US-28",
+    "story": "As an adult who enjoys personalisation, I want to unlock a non-transferable cosmetic preview through an optional ad, so that I can try a style without changing competition.",
+    "feature": "Rewarded cosmetics",
+    "release": "V1.1",
+    "acceptance": "Reward is disclosed, granted once and has no scoring effect.",
+    "status": "Partial: simulated provider",
+    "implementation": "Adult-only optional cosmetic offer and idempotent complete/skip/fail lifecycle.",
+    "validation": "Development provider tests only; no live ad SDK or signed reward verification."
+  },
+  {
+    "id": "US-29",
+    "story": "As a player who wants fair rankings, I want to enter matches without purchasable boosters or ad advantages, so that winning feels credible.",
+    "feature": "Ranked integrity",
+    "release": "MVP",
+    "acceptance": "Undo, reroll and revive requests are rejected in ranked rooms.",
+    "status": "Implemented",
+    "implementation": "Server rejects ranked undo, reroll, revive and booster flags; validates coordinates/sequence.",
+    "validation": "Integrity, duplicate action and impossible-move tests."
+  },
+  {
+    "id": "US-30",
+    "story": "As a league participant, I want to report a suspicious result or inappropriate team name, so that our competition stays trustworthy.",
+    "feature": "Reporting",
+    "release": "V1.1",
+    "acceptance": "Reports are rate-limited, recorded and reviewable.",
+    "status": "Implemented for pilot",
+    "implementation": "Rate-limited private reports, durable records and local admin review command.",
+    "validation": "Reporting tests. No staffed moderation operation is supplied."
+  },
+  {
+    "id": "US-31",
+    "story": "As an office worker, I want to resume my solo board after an interruption, so that short breaks do not erase progress.",
+    "feature": "Autosave",
+    "release": "MVP",
+    "acceptance": "Returning restores the last confirmed local move.",
+    "status": "Implemented",
+    "implementation": "Last confirmed solo state autosaves locally; failed save is visible/retryable.",
+    "validation": "Reload/resume browser UI test."
+  },
+  {
+    "id": "US-32",
+    "story": "As an adult playing in a noisy place, I want to understand all feedback with sound off, so that headphones are unnecessary.",
+    "feature": "Silent-first feedback",
+    "release": "MVP",
+    "acceptance": "Tutorials, errors and results have visual equivalents.",
+    "status": "Implemented",
+    "implementation": "All play, tutorial, errors, result and connection cues are visual/textual.",
+    "validation": "UI tests run without sound."
+  },
+  {
+    "id": "US-33",
+    "story": "As a busy adult, I want to choose between relaxed play and a fixed-length duel, so that I can match the game to my available time.",
+    "feature": "Mode selection",
+    "release": "MVP",
+    "acceptance": "Time pressure and turn limits are shown before play.",
+    "status": "Implemented",
+    "implementation": "Solo vs live 30-placement duel vs async 24-hour challenge.",
+    "validation": "Home/room UI and mode rule tests."
+  },
+  {
+    "id": "US-34",
+    "story": "As an office-team organiser, I want to set fixture windows rather than exact start times, so that colleagues can participate around work.",
+    "feature": "Flexible fixtures",
+    "release": "V1.1",
+    "acceptance": "Attempts expire at a visible server deadline.",
+    "status": "Implemented",
+    "implementation": "Organiser chooses 1–168-hour fixture windows; deadlines enforced server-side.",
+    "validation": "League scheduling and clock-based expiry tests."
+  },
+  {
+    "id": "US-35",
+    "story": "As a parent playing with a child, I want to use pass-and-play on one phone, so that we can enjoy a family challenge together.",
+    "feature": "Local face-off",
+    "release": "V1.1",
+    "acceptance": "Turns are separated and local scores are marked unranked.",
+    "status": "Implemented",
+    "implementation": "Pass-and-play handoff hides first board, second gets same seed; unranked result.",
+    "validation": "Shared seed engine plus family-duel UI."
+  },
+  {
+    "id": "US-36",
+    "story": "As an adult who dislikes intrusive ads, I want to see ads only at clear breaks and decline rewarded offers, so that I remain in control.",
+    "feature": "Ad controls",
+    "release": "MVP",
+    "acceptance": "No ad overlays the board; declining keeps free play available.",
+    "status": "Partial: no live ads",
+    "implementation": "No board ads; test offers have decline/failure states and never block rematches.",
+    "validation": "Provider simulation tests. Real ad scheduling/delivery is absent."
+  },
+  {
+    "id": "US-37",
+    "story": "As an adult who prefers uninterrupted play, I want to purchase removal of automatic ads, so that I can choose a quieter experience.",
+    "feature": "Remove automatic ads",
+    "release": "Later",
+    "acceptance": "Purchase restoration works; optional rewarded ads remain separately labelled.",
+    "status": "Not implemented",
+    "implementation": "Purchase-restoration control truthfully reports unavailable billing.",
+    "validation": "No purchase, receipt verification or store restoration is claimed."
+  },
+  {
+    "id": "US-38",
+    "story": "As a player using a second device, I want to recover my account and earned progress, so that a phone change does not erase my history.",
+    "feature": "Account recovery",
+    "release": "V1.1",
+    "acceptance": "Verified sign-in restores cloud records without merging another profile.",
+    "status": "Pilot implementation",
+    "implementation": "Bearer-key recovery and revision-checked cloud backup; personal vs verified records separated.",
+    "validation": "Restart/recovery/cloud isolation tests. Not email/phone-verified identity."
+  },
+  {
+    "id": "US-39",
+    "story": "As a player on a budget phone, I want to disable particles and use simple animations, so that the game remains responsive.",
+    "feature": "Low-effects mode",
+    "release": "MVP",
+    "acceptance": "Core play is tested on representative budget Android hardware.",
+    "status": "Device acceptance pending",
+    "implementation": "Low-effects setting disables placement/clear/score effects.",
+    "validation": "Browser execution checked; no representative budget Android hardware benchmark."
+  },
+  {
+    "id": "US-40",
+    "story": "As an adult monitoring screen time, I want to see my session duration and optional break reminder, so that I can make an informed choice about continuing.",
+    "feature": "Session awareness",
+    "release": "MVP",
+    "acceptance": "Reminder dismissal never removes rewards or penalises a team.",
+    "status": "Implemented",
+    "implementation": "Session duration and optional foreground break reminders with quiet mode.",
+    "validation": "Code implementation; no reward/league penalty on dismissal."
+  },
+  {
+    "id": "US-41",
+    "story": "As a player who prefers larger text, I want to increase interface text size, so that labels and scores are comfortable to read.",
+    "feature": "Text scaling",
+    "release": "MVP",
+    "acceptance": "Controls remain usable at supported maximum text size.",
+    "status": "Implemented; native QA pending",
+    "implementation": "100–200% custom text size with scrolling/reflow.",
+    "validation": "Browser 320/360/390/768-width 200% checks; native layout testing pending."
+  },
+  {
+    "id": "US-42",
+    "story": "As a player who wants clearer visuals, I want to use a high-contrast board with patterned blocks, so that occupied cells are easy to distinguish.",
+    "feature": "High-contrast theme",
+    "release": "MVP",
+    "acceptance": "Board information never depends on hue alone.",
+    "status": "Implemented; native QA pending",
+    "implementation": "High-contrast board plus automatic symbols and optional normal-theme patterns.",
+    "validation": "Browser inspection; no accessibility certification claimed."
+  },
+  {
+    "id": "US-43",
+    "story": "As a player with less precise touch input, I want to tap a piece and then tap its destination, so that dragging is not my only option.",
+    "feature": "Tap-to-place",
+    "release": "MVP",
+    "acceptance": "Preview, confirm and cancel all work without dragging.",
+    "status": "Implemented",
+    "implementation": "Tap piece, destination, preview, confirm and cancel; dragging optional.",
+    "validation": "Browser legal placement test; native touch precision pending."
+  },
+  {
+    "id": "US-44",
+    "story": "As a player who prefers unhurried play, I want to choose untimed solo and asynchronous challenges, so that quick reflexes are not required.",
+    "feature": "Relaxed play",
+    "release": "MVP/V1.1",
+    "acceptance": "Live blitz is optional and never the default mode.",
+    "status": "Implemented",
+    "implementation": "Untimed solo/practice and async attempts; no default blitz.",
+    "validation": "Mode and async expiry tests."
+  },
+  {
+    "id": "US-45",
+    "story": "As a new player, I want to replay a plain-language tutorial, so that I can learn at my own pace.",
+    "feature": "Replayable help",
+    "release": "MVP",
+    "acceptance": "Help is accessible from the board without losing solo progress.",
+    "status": "Implemented",
+    "implementation": "Plain-language Help modal from board without replacing saved solo; replayable tutorial.",
+    "validation": "Tutorial UI; modal path source inspection."
+  },
+  {
+    "id": "US-46",
+    "story": "As a player sensitive to visual motion, I want to reduce animation and disable vibration, so that the game feels comfortable.",
+    "feature": "Reduced motion",
+    "release": "MVP",
+    "acceptance": "Flashes and celebratory motion are removed in this setting.",
+    "status": "Implemented; native QA pending",
+    "implementation": "System reduced motion respected, user motion/low-effects toggles, optional vibration off by default.",
+    "validation": "Browser settings; OS/native assistive behaviour pending."
+  },
+  {
+    "id": "US-47",
+    "story": "As a grandparent or older relative, I want to join a private family league, so that I can connect with relatives across age groups.",
+    "feature": "Family leagues",
+    "release": "V1.1",
+    "acceptance": "Only invited accounts appear in the league.",
+    "status": "Pilot implementation",
+    "implementation": "Private family team leagues reuse invitations and membership rules.",
+    "validation": "League privacy tests. Guardian production verification remains open."
+  },
+  {
+    "id": "US-48",
+    "story": "As a player who enjoys personal goals, I want to track my own improvement without a public rank, so that progress feels rewarding at my level.",
+    "feature": "Personal records",
+    "release": "MVP",
+    "acceptance": "Personal, assisted and verified competitive records are separated.",
+    "status": "Implemented",
+    "implementation": "Local personal/assisted/authoritative competitive bests separated; private history.",
+    "validation": "Cloud record separation tests and profile screen."
+  },
+  {
+    "id": "US-49",
+    "story": "As a player who prefers Hindi or Marathi, I want to read menus and help in my preferred language, so that language does not prevent participation.",
+    "feature": "Localisation",
+    "release": "V1.1",
+    "acceptance": "Translated text and Devanagari fonts fit supported layouts.",
+    "status": "Partial localisation",
+    "implementation": "Hindi/Marathi core menus and learning, bundled Devanagari; secondary/dynamic messages still English.",
+    "validation": "Browser language/layout checks; native-speaker and full-string QA pending."
+  },
+  {
+    "id": "US-50",
+    "story": "As a player who values simplicity, I want to use a home screen with a few clear choices, so that I can find play, friends and help easily.",
+    "feature": "Simple navigation",
+    "release": "MVP",
+    "acceptance": "Primary play is reachable in one tap after setup.",
+    "status": "Implemented",
+    "implementation": "Primary Solo/Resume one tap after setup; Friends/Club/You secondary.",
+    "validation": "Onboarding and one-tap Play UI test."
+  }
+]

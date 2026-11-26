@@ -1,0 +1,39 @@
+✔ seeded sequence and cosmetic stream are reproducible (18.514688ms)
+✔ three slots refill only when the entire tray is used (5.481681ms)
+✔ rejects invalid coordinates, overlap, used slot and stale sequence without changing input (2.612515ms)
+✔ simultaneous row and column clears count intersection once, score both lines (0.953215ms)
+✔ combo bonus caps at nine and resets on a non-clear (0.924932ms)
+✔ fixed move limit ends cleanly and rejects extra placements (0.560956ms)
+✔ locked board has no legal moves, practice hints do not mutate (19.738133ms)
+✔ replay exactly reproduces every confirmed state (46.093559ms)
+✔ practice simple pieces, no rotation and fixed rules version (0.798564ms)
+Block League server: http://127.0.0.1:36689
+✔ HTTP transport: two independent clients play, reconnect and see the same final result (112.062798ms)
+✔ round robin and playoff topology match 4 / 8 team formats (5.943813ms)
+✔ published standings prefer head-to-head then individual duel wins (1.254375ms)
+✔ captain approval, exact roster size, duplicates, privacy and roster lock (21.665347ms)
+✔ 4-team season advances from real validated duels to champion (22.229345ms)
+✔ 8-team season advances from real validated duels to champion (56.503755ms)
+✔ multi-team qualification tie schedules all paired captain deciders; no hidden seeding (8.344991ms)
+✔ tied knockout schedules a fresh captain decider instead of inventing a winner (3.026039ms)
+✔ head-to-head subgroup paths do not collapse distinct tie groups (2.506108ms)
+✔ same pieces, independent boards, score replay and hidden opponent moves (12.79161ms)
+✔ idempotent move retry and final result; action ID collision rejected (3.980355ms)
+✔ ranked rejects boosters, impossible moves, anonymous and outsider access (2.247158ms)
+✔ 60 second reconnect grace restores state, late reconnect closes own attempt (3.612113ms)
+✔ live deadline and async deadline enforced, ties are draws (0.739814ms)
+✔ expired room rejects joining; host can remove an unstarted seat (1.065492ms)
+✔ protected children and unknown age have no ad access; guardian gates social (201.244986ms)
+✔ recovery restores the same private account, never another account (1.064413ms)
+✔ preset reactions only and reporting rate limits (2.259294ms)
+✔ reward provider is explicitly test-only; grants are idempotent and decline is free (1.438381ms)
+✔ atomic persistence survives service restart (3.230301ms)
+✔ cloud recovery restores local progress separately from server-verified records (0.886811ms)
+ℹ tests 30
+ℹ suites 0
+ℹ pass 30
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 589.291148

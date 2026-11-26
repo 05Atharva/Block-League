@@ -1,0 +1,73 @@
+{
+  "generatedAt": "2026-11-05T17:24:53.803Z",
+  "runs": 500,
+  "totalMoves": 6536,
+  "replayMismatches": 0,
+  "invalidStates": 0,
+  "meanScore": 599,
+  "moveLimit": 4,
+  "lockouts": 496,
+  "note": "Deterministic legal-move policy, not human usability or balance validation.",
+  "samples": [
+    {
+      "seed": 1,
+      "moves": 10,
+      "score": 510,
+      "reason": "No pieces fit"
+    },
+    {
+      "seed": 2,
+      "moves": 11,
+      "score": 390,
+      "reason": "No pieces fit"
+    },
+    {
+      "seed": 3,
+      "moves": 14,
+      "score": 700,
+      "reason": "No pieces fit"
+    },
+    {
+      "seed": 4,
+      "moves": 20,
+      "score": 1020,
+      "reason": "No pieces fit"
+    },
+    {
+      "seed": 5,
+      "moves": 14,
+      "score": 580,
+      "reason": "No pieces fit"
+    },
+    {
+      "seed": 6,
+      "moves": 23,
+      "score": 2220,
+      "reason": "No pieces fit"
+    },
+    {
+      "seed": 7,
+      "moves": 8,
+      "score": 300,
+      "reason": "No pieces fit"
+    },
+    {
+      "seed": 8,
+      "moves": 14,
+      "score": 530,
+      "reason": "No pieces fit"
+    },
+    {
+      "seed": 9,
+      "moves": 18,
+      "score": 1560,
+      "reason": "No pieces fit"
+    },
+    {
+      "seed": 10,
+      "moves": 11,
+      "score": 430,
+      "reason": "No pieces fit"
+    }
+  ]
+}

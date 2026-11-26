@@ -1,0 +1,8 @@
+
+> block-league-workspace@0.3.0 check
+> npm --prefix app run typecheck && node app/node_modules/typescript/bin/tsc -p server/tsconfig.json
+
+
+> app@1.0.0 typecheck
+> tsc --noEmit
+

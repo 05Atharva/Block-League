@@ -1,0 +1,24 @@
+{
+  "at": "2026-11-05T18:44:56.576Z",
+  "passed": [
+    "Profile creation and one-tap Play",
+    "Tap, legal preview, confirmed placement and score update",
+    "Autosave survives a complete page reload",
+    "Free practice hint and undo",
+    "Three-placement guided tutorial completes",
+    "Settings layout at 200% text and 320 / 360 / 390 / 768 widths",
+    "Hindi and Marathi core settings render with Devanagari",
+    "Family handoff hides first attempt and gives identical pieces",
+    "Real PNG result card exports at 1080×1350",
+    "Family profiles keep progress separate; child profile has no reward-ad offer",
+    "Two browser clients create/join, ready, play, finalise and view both replays",
+    "No browser runtime errors"
+  ],
+  "errors": [],
+  "renderer": "Chromium, Expo React Native Web export",
+  "notTested": [
+    "Android/iOS physical touch and assistive technology",
+    "Budget-device frame rate",
+    "Production ads, billing and identity providers"
+  ]
+}

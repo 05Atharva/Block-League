@@ -1,7 +1,7 @@
 import http from "node:http";
 import { createHash } from "node:crypto";
 import { Service } from "./service.ts";
-import { resolve, extname } from "node:path";
+import { resolve, extname, sep } from "node:path";
 import { existsSync, readFileSync, statSync } from "node:fs";
 export function startServer({
   port = Number(process.env.PORT || 8787),
@@ -96,7 +96,8 @@ export function startServer({
       res.end("Invalid URL");
       return;
     }
-    if (requested.startsWith(root + "/") || requested === root) {
+    const rootPrefix = root.endsWith(sep) ? root : root + sep;
+    if (requested.startsWith(rootPrefix) || requested === root) {
       let path =
         existsSync(requested) && statSync(requested).isFile()
           ? requested

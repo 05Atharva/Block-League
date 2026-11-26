@@ -56,8 +56,8 @@
     "release": "MVP",
     "acceptance": "Child profiles cannot enter public matchmaking or searchable teams.",
     "status": "Pilot implementation",
-    "implementation": "Private rooms only; server blocks child social play until guardian PIN approval.",
-    "validation": "Server guardian tests pass. Guardian identity/consent is not verified."
+    "implementation": "Private rooms require guardian approval for child profiles. Revoking approval blocks access to active rooms.",
+    "validation": "Mobile PIN flow and server invite/revocation tests. Guardian identity and consent verification remain external."
   },
   {
     "id": "US-07",
@@ -96,8 +96,8 @@
     "release": "MVP",
     "acceptance": "Reminders work locally; external sharing is gated for child profiles.",
     "status": "Pilot implementation",
-    "implementation": "PIN-gated online social/sharing settings and child reminder changes.",
-    "validation": "Guardian server tests. Local profile switching is not a secure parental boundary."
+    "implementation": "PIN-gated online social and sharing settings and child reminder changes. Current social approval is visible in the profile.",
+    "validation": "Mobile guardian controls and server revocation checks. Device-level parental enforcement remains open."
   },
   {
     "id": "US-11",
@@ -106,8 +106,8 @@
     "release": "MVP",
     "acceptance": "Expired codes fail clearly and hosts can remove unstarted seats.",
     "status": "Implemented",
-    "implementation": "Expiring 8-character codes. Host removal of an unstarted guest requires confirmation.",
-    "validation": "Room expiry and host removal tests."
+    "implementation": "Expiring eight-character room codes. Hosts can confirm removal of a waiting guest; removed sessions exit to a recovery screen and can rejoin when invited.",
+    "validation": "Mobile preflight, host removal, same-code rejoin and server expiry checks."
   },
   {
     "id": "US-12",
@@ -126,8 +126,8 @@
     "release": "MVP",
     "acceptance": "Turn allowance and overall expiry are visible before joining.",
     "status": "Implemented",
-    "implementation": "30-placement limit and live/async window visible before entry.",
-    "validation": "Limit tests and room UI."
+    "implementation": "The pre-join review provides room type, invitation expiry, match window and placement limit before claiming a seat.",
+    "validation": "Browser invitation dialog plus server tests that preview is read-only, gated, and respects expiry."
   },
   {
     "id": "US-14",
@@ -136,8 +136,8 @@
     "release": "MVP",
     "acceptance": "Reconnect within the grace period restores confirmed server state.",
     "status": "Implemented",
-    "implementation": "Polling resumes authoritative state within live 60-second grace.",
-    "validation": "Clock-controlled reconnect tests; UI shows reconnection state."
+    "implementation": "Live reconnect restores authoritative state within the grace period. A successful same-code rejoin clears stale access errors.",
+    "validation": "Browser reconnect after guest removal plus server grace-period tests."
   },
   {
     "id": "US-15",
@@ -196,8 +196,8 @@
     "release": "V1.1",
     "acceptance": "Disabled reminders are not replaced with urgency notifications.",
     "status": "Implemented for in-app reminders",
-    "implementation": "Per-profile quiet mode and a persisted one-hour mute cover break and competition reminders. Results remain in the foreground notification inbox. Expired break intervals are not replayed.",
-    "validation": "Browser timed mute and persistence tests. Remote push delivery is outside the pilot."
+    "implementation": "Per-profile quiet mode and one-hour mute cover break and deadline reminders. The foreground inbox remains available for match results.",
+    "validation": "A browser test exercised a real upcoming async deadline while muted and after resuming."
   },
   {
     "id": "US-21",
@@ -206,8 +206,8 @@
     "release": "V1.1",
     "acceptance": "Invites, roster limits and entry deadline are shown.",
     "status": "Implemented",
-    "implementation": "Private 4- or 8-team leagues, invitation, entry deadline and roster limits.",
-    "validation": "League API tests."
+    "implementation": "Private 4- and 8-team leagues support up to 40 characters in season names. Invitations, roster limits and expiry are visible during open registration.",
+    "validation": "Browser creation, preserved name and closed-invitation checks; server limits test."
   },
   {
     "id": "US-22",
@@ -246,8 +246,8 @@
     "release": "MVP",
     "acceptance": "No opponent identity is included without that player's permission.",
     "status": "Implemented; native QA pending",
-    "implementation": "Responsive result-card preview and PNG export. Same-seed unranked challenge link falls back to copying in browsers without a share sheet.",
-    "validation": "Browser PNG export; native share handoff still requires device QA."
+    "implementation": "Responsive result-card preview and PNG export. Same-seed challenge links survive first profile setup, and browsers without a share sheet can copy the link.",
+    "validation": "Browser first-run challenge and PNG checks; native share sheet requires a device."
   },
   {
     "id": "US-26",
@@ -346,8 +346,8 @@
     "release": "V1.1",
     "acceptance": "Turns are separated and local scores are marked unranked.",
     "status": "Implemented",
-    "implementation": "Pass-and-play handoff keeps the first board hidden, supplies the same pieces to player two and offers an explicit exit.",
-    "validation": "Shared engine and family-duel browser checks."
+    "implementation": "Pass-and-play handoff removes the first board and score from the rendered screen and uses an opaque overlay. Player two starts with the same sequence.",
+    "validation": "Browser handoff privacy, identical initial trays and unranked result checks."
   },
   {
     "id": "US-36",
@@ -365,9 +365,9 @@
     "feature": "Remove automatic ads",
     "release": "Later",
     "acceptance": "Purchase restoration works; optional rewarded ads remain separately labelled.",
-    "status": "Not implemented",
-    "implementation": "Purchase-restoration control truthfully reports unavailable billing.",
-    "validation": "No purchase, receipt verification or store restoration is claimed."
+    "status": "Blocked on store provider",
+    "implementation": "The restoration control gives a neutral unavailable-billing notice.",
+    "validation": "Browser notice test. Store products, receipt verification and sandbox restoration remain open."
   },
   {
     "id": "US-38",
@@ -406,8 +406,8 @@
     "release": "MVP",
     "acceptance": "Controls remain usable at supported maximum text size.",
     "status": "Implemented; native QA pending",
-    "implementation": "100–200% custom text with reflow and scrollable overlays.",
-    "validation": "Browser 320/360/390/768-width checks and 320 px drawer check."
+    "implementation": "At 200% text, compact screens give the heading its own line and stack the placement actions.",
+    "validation": "Browser header-height and label-containment checks at 320 px, plus phone-width interaction checks."
   },
   {
     "id": "US-42",
@@ -426,8 +426,8 @@
     "release": "MVP",
     "acceptance": "Preview, confirm and cancel all work without dragging.",
     "status": "Implemented",
-    "implementation": "Tap piece, destination, preview, confirm and cancel; dragging optional.",
-    "validation": "Browser legal placement test; native touch precision pending."
+    "implementation": "Tap piece, destination, preview, confirm and cancel. Touch drag uses pointer handling on web and keeps the move as a preview until confirmation.",
+    "validation": "Mobile Chromium drag and placement tests. Native gesture verification remains open."
   },
   {
     "id": "US-44",
@@ -465,9 +465,9 @@
     "feature": "Family leagues",
     "release": "V1.1",
     "acceptance": "Only invited accounts appear in the league.",
-    "status": "Pilot implementation",
-    "implementation": "Private family team leagues reuse invitations and membership rules.",
-    "validation": "League privacy tests. Guardian production verification remains open."
+    "status": "Implemented in the pilot",
+    "implementation": "Invited, guardian-approved family members can join a private league. An outsider cannot see it, and revoking approval blocks active fixture access.",
+    "validation": "Server family-league integration and mobile Club walk-through. Production guardian verification remains open."
   },
   {
     "id": "US-48",
@@ -486,8 +486,8 @@
     "release": "V1.1",
     "acceptance": "Translated text and Devanagari fonts fit supported layouts.",
     "status": "Partial localisation",
-    "implementation": "Hindi and Marathi core menus and learning, bundled Devanagari, and translations for notifications and common confirmations. Secondary and dynamic messages still need coverage.",
-    "validation": "Browser language/layout checks; native-speaker review and full-string QA pending."
+    "implementation": "Hindi and Marathi include core menus, tutorial, move counts, line clears, fit cues, board accessibility labels and several match and league statuses.",
+    "validation": "Browser selected-text checks and Devanagari layout inspection. Secondary strings and native-speaker review remain open."
   },
   {
     "id": "US-50",

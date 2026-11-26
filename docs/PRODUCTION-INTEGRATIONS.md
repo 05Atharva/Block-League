@@ -22,6 +22,12 @@ Qualification ties use head-to-head reapplication, individual duel wins, then a 
 
 The Notifications drawer is a foreground inbox. System push would require a registered device channel, consent preferences, delivery credentials, and a backend job for deadlines. The pilot stores quiet preferences and applies them to in-app reminder generation.
 
+## Private invitations and Championship rollout
+
+Hosted web builds copy invitations on the current origin. Set `EXPO_PUBLIC_WEB_URL` in native builds to the hosted web app's HTTPS origin so recipients can review an invite in a browser. Builds without that setting copy a `blockleague:///` link for installed builds and display the manual room code. Test platform sharing and configure Android App Links and iOS Universal Links before offering installed-app handoff from the HTTPS URL.
+
+New Championship registration is disabled by default. Set `ENABLE_CHAMPIONSHIP=1` on the server when the staged rollout reaches Championship. Mini League and existing seasons stay available to eligible participants when the switch is off.
+
 ## Localisation and accessibility — US-39, US-41, US-46, US-49
 
 Implemented: scalable layout, 52-pixel general buttons, high contrast, occupied-cell symbols, tap-to-place, custom motion opt-out, system reduced-motion response, Hindi/Marathi core menu and tutorial translations, Devanagari font. Still needed: native-speaker review of all secondary/dynamic messages; full localisation of league/server errors; TalkBack/VoiceOver testing; a magnified placement mode if users need larger-than-cell targets; real Android/iOS drag tests and measurements on representative budget phones.

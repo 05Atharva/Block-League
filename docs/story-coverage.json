@@ -106,8 +106,8 @@
     "release": "MVP",
     "acceptance": "Expired codes fail clearly and hosts can remove unstarted seats.",
     "status": "Implemented",
-    "implementation": "Expiring eight-character room codes. Hosts can confirm removal of a waiting guest; removed sessions exit to a recovery screen and can rejoin when invited.",
-    "validation": "Mobile preflight, host removal, same-code rejoin and server expiry checks."
+    "implementation": "Expiring eight-character room codes and direct invite links. A link survives setup and previews terms before claiming a seat. Hosts can remove a waiting guest.",
+    "validation": "Browser link, preflight, host removal and same-code rejoin checks. Native link handoff needs device acceptance."
   },
   {
     "id": "US-12",
@@ -186,8 +186,8 @@
     "release": "V1.1",
     "acceptance": "Badge rules are visible and cannot be satisfied by ad-earned tools.",
     "status": "Implemented",
-    "implementation": "Server-verified First/Cross/Five-Clear/Clean Duel/Team/Champion badges; local badges labelled.",
-    "validation": "Engine badge conditions and league champion tests."
+    "implementation": "Server-verified badges can be exported as achievement cards with only the sharer's alias. Local badges are labelled separately.",
+    "validation": "Engine badge checks, league awards and browser PNG export."
   },
   {
     "id": "US-20",
@@ -226,7 +226,7 @@
     "release": "V1.1",
     "acceptance": "Equal records resolve by declared rules without hidden changes.",
     "status": "Implemented",
-    "implementation": "League points, subgroup head-to-head reapplication, individual wins, explicit deciders.",
+    "implementation": "Club explains fixture points and standings points separately. Head-to-head reapplication, individual wins and explicit deciders determine qualification.",
     "validation": "Standings and tied qualification tests."
   },
   {
@@ -236,8 +236,8 @@
     "release": "Later",
     "acceptance": "Bracket advancement follows stored results and defined seeding.",
     "status": "Implemented",
-    "implementation": "Server results advance Qualifier 1, Eliminator, Qualifier 2 and Final.",
-    "validation": "Full 8-team simulated season from real validated moves."
+    "implementation": "Server results advance Qualifier 1, Eliminator, Qualifier 2 and Final. New Championship registration is gated on the server.",
+    "validation": "Server gate check and full 8-team season from validated moves."
   },
   {
     "id": "US-25",
@@ -246,8 +246,8 @@
     "release": "MVP",
     "acceptance": "No opponent identity is included without that player's permission.",
     "status": "Implemented; native QA pending",
-    "implementation": "Responsive result-card preview and PNG export. Same-seed challenge links survive first profile setup, and browsers without a share sheet can copy the link.",
-    "validation": "Browser first-run challenge and PNG checks; native share sheet requires a device."
+    "implementation": "Result and verified achievement cards support preview and PNG export with the sharer's alias. Same-seed unranked challenge links survive setup.",
+    "validation": "Browser PNG, card privacy and first-run challenge checks. Native sharing requires a device."
   },
   {
     "id": "US-26",

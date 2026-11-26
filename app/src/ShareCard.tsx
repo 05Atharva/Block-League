@@ -4,14 +4,14 @@ import { BrandMark } from "./brand";
 import { brand, fonts, palette } from "./design";
 export const ShareCard = forwardRef<
   React.ElementRef<typeof View>,
-  { score: number; mode: string; seed: number }
->(({ score, mode, seed }, ref) => (
+  { score: number; mode: string; seed: number; width?: number }
+>(({ score, mode, seed, width = 280 }, ref) => (
   <View
     ref={ref}
     collapsable={false}
     style={{
-      width: 280,
-      height: 350,
+      width,
+      height: width * 1.25,
       backgroundColor: brand.ink,
       borderRadius: 18,
       padding: 24,

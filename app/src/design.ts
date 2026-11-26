@@ -47,6 +47,8 @@ export const themes = {
     onValid: "#324513",
     onInvalid: "#642221",
     notice: "#F7DFD8",
+    danger: "#8C3040",
+    onDanger: "#FFFFFF",
   },
   dark: {
     bg: "#17131D",
@@ -68,6 +70,8 @@ export const themes = {
     onValid: "#324513",
     onInvalid: "#642221",
     notice: "#482D37",
+    danger: "#FFB4BD",
+    onDanger: "#38141E",
   },
   contrast: {
     bg: "#FFFFFF",
@@ -89,6 +93,8 @@ export const themes = {
     onValid: "#183500",
     onInvalid: "#691413",
     notice: "#FCE7E7",
+    danger: "#730D22",
+    onDanger: "#FFFFFF",
   },
 };
 export type Settings = {
@@ -102,6 +108,7 @@ export type Settings = {
   language: "en" | "hi" | "mr";
   reminder: number;
   quiet: boolean;
+  quietUntil?: number;
   palette: keyof typeof palettes;
 };
 export const defaults: Settings = {
@@ -199,4 +206,5 @@ export const motionSpec = {
   score: 275,
   screen: 185,
   result: 480,
+  overlay: 210,
 };

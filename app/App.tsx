@@ -1,9 +1,15 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useEffectEvent,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 import {
   View,
   Animated,
   Pressable,
-  Modal,
   ActivityIndicator,
   AccessibilityInfo,
   AppState,
@@ -41,9 +47,22 @@ import { ResultMark, ScoreBeat } from "./src/GameFeedback";
 import { useScreenArrival } from "./src/motion";
 import { load, persist, newProfile } from "./src/storage";
 import type { Local, Profile } from "./src/storage";
-import { request } from "./src/api";
+import { NetworkError, request } from "./src/api";
+import { awaitsSubmission, draftKey } from "./src/asyncDraft";
+import type { AsyncDraft } from "./src/asyncDraft";
 import { exportCard } from "./src/share";
 import { ShareCard } from "./src/ShareCard";
+import {
+  Dialog,
+  IconButton,
+  NotificationDrawer,
+  Overlay,
+  Toast,
+} from "./src/Overlays";
+import type { DialogContent } from "./src/Overlays";
+import { addInboxItem, quietNow } from "./src/notifications";
+import type { InboxItem, ToastMessage } from "./src/notifications";
+import { translate } from "./src/locales";
 import {
   createGame,
   place,
@@ -59,6 +78,28 @@ const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2);
 const randomSeed = () => Math.floor(Math.random() * 0xffffffff);
 const earnedStars = (game: Game) =>
   game.moves.length >= 3 ? Math.max(1, Math.floor(game.lines / 2)) : 0;
+const emptyForm = {
+  alias: "",
+  age: "unknown",
+  code: "",
+  name: "",
+  pin: "",
+  recovery: "",
+  window: "24",
+};
+function patchProfile(
+  local: Local,
+  profileId: string | undefined,
+  patch: Partial<Profile>,
+): Local {
+  if (!profileId) return local;
+  return {
+    ...local,
+    profiles: local.profiles.map((p) =>
+      p.id === profileId ? { ...p, ...patch } : p,
+    ),
+  };
+}
 const ageGroups = [
   "7-12",
   "13-17",
@@ -96,6 +137,13 @@ function GameApp() {
     }),
     [loaded, setLoaded] = useState(false);
   const profile = local.profiles.find((p) => p.id === local.active);
+  const profileId = profile?.id;
+  const profileToken = profile?.token;
+  const profileDrafts = profile?.asyncDrafts;
+  const draftCache = useRef<Record<string, AsyncDraft>>({});
+  useLayoutEffect(() => {
+    draftCache.current = profileDrafts ?? {};
+  }, [profileId, profileDrafts]);
   const settings = profile?.settings || defaults,
     t = themes[settings.theme],
     s = strings[settings.language];
@@ -107,23 +155,24 @@ function GameApp() {
     [dragging, setDragging] = useState(false);
   const [busy, setBusy] = useState(false),
     busyRef = useRef(false),
-    [notice, setNotice] = useState(""),
+    [toast, setToast] = useState<ToastMessage | null>(null),
     [savedError, setSavedError] = useState(false),
-    [dialog, setDialog] = useState<{
-      title: string;
-      body: string;
-      action?: () => void;
-      label?: string;
-    } | null>(null);
-  const [form, setForm] = useState<Record<string, string>>({
-    alias: "",
-    age: "unknown",
-    code: "",
-    name: "",
-    pin: "",
-    recovery: "",
-    window: "24",
-  });
+    [dialog, setDialog] = useState<DialogContent | null>(null);
+  const [inboxOpen, setInboxOpen] = useState(false);
+  const toastId = useRef(0);
+  const notify = useCallback(
+    (text: string, tone: ToastMessage["tone"] = "success") => {
+      const id = ++toastId.current;
+      setToast((previous) =>
+        previous?.text === text && previous.tone === tone
+          ? previous
+          : { id, text, tone },
+      );
+    },
+    [setToast],
+  );
+  const dismissToast = useCallback(() => setToast(null), [setToast]);
+  const [form, setForm] = useState<Record<string, string>>(emptyForm);
   const [room, setRoom] = useState<any>(null),
     [roomCode, setRoomCode] = useState(""),
     [connected, setConnected] = useState(true),
@@ -132,6 +181,7 @@ function GameApp() {
     [leagues, setLeagues] = useState<any[]>([]),
     [team, setTeam] = useState<any>(null),
     [league, setLeague] = useState<any>(null);
+  const [submissionError, setSubmissionError] = useState("");
   const [replayStep, setReplayStep] = useState(0),
     [familyFirst, setFamilyFirst] = useState<Game | null>(null),
     [handoff, setHandoff] = useState(false),
@@ -139,24 +189,21 @@ function GameApp() {
     [offer, setOffer] = useState<any>(null),
     [newSoloBest, setNewSoloBest] = useState(false);
   const [seconds, setSeconds] = useState(0),
+    [now, setNow] = useState(() => Date.now()),
     [systemReduce, setSystemReduce] = useState(true),
     reminded = useRef(0),
     [undo, setUndo] = useState<Game | null>(null),
     [resultMode, setResultMode] = useState(""),
     [sessionBadges, setSessionBadges] = useState<string[]>([]);
   const { width } = useWindowDimensions();
+  const quiet = quietNow(settings.quiet, settings.quietUntil, now);
   const effective = {
     ...settings,
     motion: settings.motion && !systemReduce && !settings.lowEffects,
   };
   const screenArrival = useScreenArrival(screen, effective.motion);
   function updateProfile(patch: Partial<Profile>) {
-    setLocal((l) => ({
-      ...l,
-      profiles: l.profiles.map((p) =>
-        p.id === l.active ? { ...p, ...patch } : p,
-      ),
-    }));
+    setLocal((state) => patchProfile(state, profileId, patch));
   }
   function setSetting<K extends keyof Settings>(key: K, value: Settings[K]) {
     updateProfile({ settings: { ...settings, [key]: value } });
@@ -174,9 +221,34 @@ function GameApp() {
   function info(title: string, body: string) {
     setDialog({ title, body });
   }
+  function confirmChange(
+    title: string,
+    body: string,
+    label: string,
+    action: () => void,
+  ) {
+    setDialog({ title, body, label, action, destructive: true });
+  }
   function go(next: string) {
     setScreen(next);
-    setNotice("");
+    setToast(null);
+  }
+  function resetProfileViews() {
+    acceptedRoom.current = null;
+    setRoomCode("");
+    setRoom(null);
+    setTeam(null);
+    setLeague(null);
+    setRooms([]);
+    setTeams([]);
+    setLeagues([]);
+    setOffer(null);
+    setForm(emptyForm);
+    setSubmissionError("");
+    setInboxOpen(false);
+    setSeconds(0);
+    reminded.current = 0;
+    go("home");
   }
   async function run(fn: () => Promise<void>) {
     if (busyRef.current) return;
@@ -185,8 +257,9 @@ function GameApp() {
     try {
       await fn();
     } catch (e) {
-      setNotice(
+      notify(
         e instanceof Error ? e.message : "Something went wrong. Try again.",
+        "error",
       );
     } finally {
       busyRef.current = false;
@@ -201,8 +274,9 @@ function GameApp() {
       })
       .catch(() => {
         setLoaded(true);
-        setNotice(
+        notify(
           "Saved profiles could not be read. Start a new local profile.",
+          "error",
         );
       });
     AccessibilityInfo.isReduceMotionEnabled()
@@ -213,7 +287,7 @@ function GameApp() {
       setSystemReduce,
     );
     return () => sub.remove();
-  }, []);
+  }, [notify]);
   useEffect(() => {
     if (loaded)
       persist(local)
@@ -231,50 +305,152 @@ function GameApp() {
         badges: profile.badges,
       })
     : "";
+  const storedRevision = useEffectEvent(() => profile?.cloudRevision ?? 0);
   useEffect(() => {
-    if (!profile?.token) return;
+    if (!profileId || !profileToken) return;
     let active = true;
-    const p = profile;
     const timer = setTimeout(() => {
-      request(local.server, p.token!, "progress.sync", {
-        revision: syncRevision.current[p.id] ?? p.cloudRevision ?? 0,
+      request(local.server, profileToken, "progress.sync", {
+        revision: syncRevision.current[profileId] ?? storedRevision(),
         progress: JSON.parse(cloudPayload),
       })
         .then((r) => {
-          syncRevision.current[p.id] = r.revision;
-          if (active) updateProfile({ cloudRevision: r.revision });
+          syncRevision.current[profileId] = r.revision;
+          if (active)
+            setLocal((state) =>
+              patchProfile(state, profileId, { cloudRevision: r.revision }),
+            );
         })
         .catch((e) => {
-          if (active && !String(e.message).includes("fetch"))
-            setNotice("Cloud save: " + e.message);
+          if (active && !(e instanceof NetworkError))
+            notify("Cloud save: " + e.message, "error");
         });
     }, 1200);
     return () => {
       active = false;
       clearTimeout(timer);
     };
-  }, [profile?.id, profile?.token, cloudPayload, local.server]);
+  }, [profileId, profileToken, cloudPayload, local.server, notify]);
 
+  const onClockTick = useEffectEvent((at: number) => {
+    if (
+      Platform.OS === "web"
+        ? document.visibilityState !== "visible"
+        : AppState.currentState !== "active"
+    )
+      return;
+    const elapsed = seconds + 1;
+    setSeconds(elapsed);
+    setNow(at);
+    if (!profileId || !settings.reminder) return;
+    const interval = Math.floor(elapsed / (settings.reminder * 60));
+    if (interval <= reminded.current) return;
+    reminded.current = interval;
+    if (quietNow(settings.quiet, settings.quietUntil, at)) return;
+    const item: InboxItem = { id: `break-${at}`, kind: "break", at };
+    setLocal((state) => ({
+      ...state,
+      profiles: state.profiles.map((p) =>
+        p.id === profileId ? { ...p, inbox: addInboxItem(p.inbox, item) } : p,
+      ),
+    }));
+    if (screen !== "game" || mode !== "online")
+      notify("Take a break whenever you like. Your progress is safe.", "info");
+  });
   useEffect(() => {
-    const id = setInterval(() => {
-      if (AppState.currentState === "active" || Platform.OS === "web")
-        setSeconds((v) => v + 1);
-    }, 1000);
-    return () => clearInterval(id);
+    const timer = setInterval(() => onClockTick(Date.now()), 1000);
+    return () => clearInterval(timer);
   }, []);
   useEffect(() => {
-    if (
-      settings.reminder &&
-      !settings.quiet &&
-      Math.floor(seconds / (settings.reminder * 60)) > reminded.current
-    ) {
-      reminded.current = Math.floor(seconds / (settings.reminder * 60));
-      info(
-        "A little pause?",
-        `You have played for ${Math.floor(seconds / 60)} minutes this session. Your progress is safe. Take a break whenever you like.`,
-      );
+    if (!profileId || !profileToken) return;
+    let active = true;
+    let pending = false;
+    async function refresh() {
+      if (
+        !active ||
+        pending ||
+        AppState.currentState === "background" ||
+        (Platform.OS === "web" && document.visibilityState !== "visible")
+      )
+        return;
+      pending = true;
+      try {
+        const rows = (await request(local.server, profileToken!, "rooms")) as {
+          code: string;
+          status: string;
+          kind: string;
+          finishedAt?: number;
+          deadline: number;
+          ownDone: boolean;
+        }[];
+        if (!active) return;
+        const now = Date.now();
+        const updates: InboxItem[] = [];
+        for (const room of rows) {
+          if (
+            room.status === "final" &&
+            room.finishedAt &&
+            now - room.finishedAt < 86400000
+          )
+            updates.push({
+              id: `result-${room.code}`,
+              code: room.code,
+              at: room.finishedAt,
+              kind: "result",
+            });
+          if (
+            !quiet &&
+            room.status === "playing" &&
+            room.kind !== "live" &&
+            !room.ownDone &&
+            room.deadline > now &&
+            room.deadline - now <= 3600000
+          )
+            updates.push({
+              id: `deadline-${room.code}`,
+              code: room.code,
+              at: now,
+              kind: "deadline",
+            });
+        }
+        if (!updates.length) return;
+        setLocal((state) => {
+          const p = state.profiles.find(
+            (candidate) => candidate.id === profileId,
+          );
+          if (!p || state.active !== profileId || p.token !== profileToken)
+            return state;
+          const inbox = p.inbox ?? [];
+          const next = updates
+            .filter((item) => !inbox.some((old) => old.id === item.id))
+            .concat(inbox)
+            .sort((a, b) => b.at - a.at)
+            .slice(0, 30);
+          if (
+            next.length === inbox.length &&
+            next.every((item, i) => item === inbox[i])
+          )
+            return state;
+          return {
+            ...state,
+            profiles: state.profiles.map((item) =>
+              item.id === profileId ? { ...item, inbox: next } : item,
+            ),
+          };
+        });
+      } catch {
+        // Match notifications wait for the next successful foreground refresh.
+      } finally {
+        pending = false;
+      }
     }
-  }, [seconds, settings.reminder, settings.quiet]);
+    refresh();
+    const timer = setInterval(refresh, 30000);
+    return () => {
+      active = false;
+      clearInterval(timer);
+    };
+  }, [local.server, profileId, profileToken, quiet]);
   useEffect(() => {
     if (!loaded) return;
     function open(url: string) {
@@ -326,23 +502,96 @@ function GameApp() {
       current ? ls.find((x: any) => x.id === current.id) || null : null,
     );
   }
-  function receiveRoom(r: any) {
-    const prev = acceptedRoom.current;
-    if (
-      prev?.code === r.code &&
-      (prev.game.moves.length > r.game.moves.length ||
-        (prev.status === "final" && r.status !== "final"))
-    )
-      return;
-    acceptedRoom.current = r;
-    setRoom(r);
-    setGame(r.game);
-    setConnected(true);
-  }
+  const saveDraft = useCallback(
+    (key: string, draft?: AsyncDraft) => {
+      if (!profileId) return;
+      const next = { ...draftCache.current };
+      if (draft) next[key] = draft;
+      else delete next[key];
+      draftCache.current = next;
+      setLocal((state) => ({
+        ...state,
+        profiles: state.profiles.map((p) =>
+          p.id === profileId ? { ...p, asyncDrafts: next } : p,
+        ),
+      }));
+    },
+    [profileId],
+  );
+  const receiveRoom = useCallback(
+    (r: any) => {
+      const prev = acceptedRoom.current;
+      if (prev?.code !== r.code) setSubmissionError("");
+      if (
+        prev?.code === r.code &&
+        (prev.game.moves.length > r.game.moves.length ||
+          (prev.status === "final" && r.status !== "final"))
+      )
+        return;
+      let displayGame: Game = r.game;
+      if (r.kind === "async") {
+        const key = draftKey(local.server, r.code);
+        const draft = draftCache.current[key];
+        const confirmed = new Set(
+          (r.game.moves as Move[]).map((move) => move.id),
+        );
+        const remaining =
+          draft?.queued.filter((move) => !confirmed.has(move.id)) ?? [];
+        const finishing = !!draft?.finish && !r.game.done;
+        if (draft && (remaining.length || finishing)) {
+          displayGame = draft.game;
+          if (
+            remaining.length !== draft.queued.length ||
+            finishing !== draft.finish
+          )
+            saveDraft(key, { ...draft, queued: remaining, finish: finishing });
+        } else if (r.status === "playing" && !r.game.done) {
+          if (
+            !draft ||
+            awaitsSubmission(draft) ||
+            draft.game.moves.length !== r.game.moves.length ||
+            draft.game.moves.at(-1)?.id !== r.game.moves.at(-1)?.id ||
+            draft.deadline !== r.deadline
+          ) {
+            saveDraft(key, {
+              code: r.code,
+              server: local.server,
+              deadline: r.deadline,
+              game: r.game,
+              queued: [],
+              finish: false,
+            });
+          }
+        } else if (draft) saveDraft(key);
+      }
+      acceptedRoom.current = r;
+      setRoom(r);
+      setGame(displayGame);
+      setConnected(true);
+    },
+    [local.server, saveDraft],
+  );
   async function enterRoom(code: string) {
-    const r = await api("room.get", { code });
-    setRoomCode(r.code);
-    receiveRoom(r);
+    try {
+      const r = await api("room.get", { code });
+      setRoomCode(r.code);
+      receiveRoom(r);
+    } catch (e) {
+      const draft = draftCache.current[draftKey(local.server, code)];
+      if (!(e instanceof NetworkError) || !draft) throw e;
+      acceptedRoom.current = null;
+      setRoomCode(draft.code);
+      setRoom({
+        kind: "async",
+        code: draft.code,
+        status: "playing",
+        deadline: draft.deadline,
+        players: [],
+      });
+      setGame(draft.game);
+      setConnected(false);
+    }
+    setSubmissionError("");
     setMode("online");
     setSelected(-1);
     setAnchor(null);
@@ -358,12 +607,27 @@ function GameApp() {
       if (inFlight) return;
       inFlight = true;
       try {
-        const r = await request(local.server, token, "room.get", {
-          code: roomCode,
-        });
+        const draft = draftCache.current[draftKey(local.server, roomCode)];
+        const submit = draft && awaitsSubmission(draft) && !submissionError;
+        const r = submit
+          ? await request(local.server, token, "room.submitAsync", {
+              code: roomCode,
+              moves: draft.queued,
+              finish: draft.finish,
+            })
+          : await request(local.server, token, "room.get", { code: roomCode });
         if (alive) receiveRoom(r);
-      } catch {
-        if (alive) setConnected(false);
+      } catch (e) {
+        if (!alive) return;
+        if (e instanceof NetworkError) setConnected(false);
+        else {
+          setConnected(false);
+          setSubmissionError(
+            e instanceof Error
+              ? e.message
+              : "The server could not verify this board.",
+          );
+        }
       } finally {
         inFlight = false;
       }
@@ -374,16 +638,32 @@ function GameApp() {
       alive = false;
       clearInterval(id);
     };
-  }, [roomCode, profile?.token, mode, screen, local.server]);
+  }, [
+    roomCode,
+    profile?.token,
+    mode,
+    screen,
+    local.server,
+    receiveRoom,
+    submissionError,
+  ]);
+  const finalRoom =
+    mode === "online" && room?.status === "final" && screen === "game"
+      ? room.code
+      : undefined;
   useEffect(() => {
-    if (mode === "online" && room?.status === "final" && screen === "game") {
-      setResultMode("Verified Face-Off");
-      setSessionBadges(badgeIds(room.game, true));
-      api("me")
-        .then((user) => updateProfile({ user }))
-        .catch(() => {});
-    }
-  }, [room?.status]);
+    if (!finalRoom || !profileToken) return;
+    let active = true;
+    request(local.server, profileToken, "me")
+      .then((user) => {
+        if (active)
+          setLocal((state) => patchProfile(state, profileId, { user }));
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, [finalRoom, profileId, profileToken, local.server]);
   function start(m: Mode, resume = false) {
     setMode(m);
     setRoomCode("");
@@ -407,7 +687,21 @@ function GameApp() {
     setNewSoloBest(false);
     go("game");
   }
+  function stageAsync(game: Game, move?: Move, finishAttempt = false) {
+    const key = draftKey(local.server, roomCode);
+    const before = draftCache.current[key];
+    saveDraft(key, {
+      code: roomCode,
+      server: local.server,
+      deadline: room.deadline,
+      game,
+      queued: move ? [...(before?.queued ?? []), move] : (before?.queued ?? []),
+      finish: finishAttempt,
+    });
+    setGame(game);
+  }
   function completeLocal(g: Game) {
+    const completedAt = now;
     const label =
       mode === "practice"
         ? "Assisted practice"
@@ -440,7 +734,7 @@ function GameApp() {
         ],
         history: [
           ...profile.history,
-          { score: g.score, mode: label, at: Date.now() },
+          { score: g.score, mode: label, at: completedAt },
         ].slice(-40),
       });
     }
@@ -459,7 +753,9 @@ function GameApp() {
         seq: game.moves.length,
         id: uid(),
       };
-      if (mode === "online") {
+      if (mode === "online" && room?.kind === "async") {
+        stageAsync(place(game, m), m);
+      } else if (mode === "online") {
         const r = await api("room.move", { code: roomCode, move: m });
         receiveRoom(r);
       } else {
@@ -483,9 +779,12 @@ function GameApp() {
           ? "Your confirmed score will stand. Your friend can finish their remaining placements."
           : "Your earned progress stays saved. You can start a fresh round whenever you like.",
       label: "Finish round",
+      destructive: mode === "online",
       action: () => {
         run(async () => {
-          if (mode === "online")
+          if (mode === "online" && room?.kind === "async")
+            stageAsync(finish(game), undefined, true);
+          else if (mode === "online")
             receiveRoom(await api("room.finish", { code: roomCode }));
           else {
             const g = finish(game);
@@ -501,7 +800,11 @@ function GameApp() {
       throw Error("A guardian must approve external sharing in Profile.");
     if (profile?.age === "unknown")
       throw Error("Choose a known-age profile before external sharing.");
-    if (mode === "online" && room?.status !== "final")
+    if (
+      mode === "online" &&
+      (room?.status !== "final" ||
+        awaitsSubmission(draftCache.current[draftKey(local.server, roomCode)]))
+    )
       throw Error("Wait for the official result");
     const label =
       mode === "online"
@@ -511,20 +814,28 @@ function GameApp() {
     else {
       const origin =
         Platform.OS === "web" ? window.location.origin : "blockleague://";
-      await Share.share({
-        message: `Block League · ${label} · ${game.score} points. Try the same pieces in unranked practice: ${origin}/?challenge=${game.seed}`,
-      });
+      const url = `${origin}/?challenge=${game.seed}`;
+      const message = `Block League · ${label} · ${game.score} points. Try the same pieces in unranked practice: ${url}`;
+      if (Platform.OS === "web" && typeof navigator.share !== "function") {
+        await Clipboard.setStringAsync(url);
+        notify("Challenge link copied.");
+      } else {
+        try {
+          await Share.share({ message });
+        } catch (e) {
+          if (!(e instanceof Error && e.name === "AbortError")) throw e;
+        }
+      }
     }
   }
   function newLocalProfile() {
     if (form.alias.trim().length < 2) {
-      setNotice("Choose an alias of at least two characters.");
+      notify("Choose an alias of at least two characters.", "error");
       return;
     }
     const p = newProfile(form.alias.trim().slice(0, 24), form.age);
     setLocal((l) => ({ ...l, profiles: [...l.profiles, p], active: p.id }));
-    setForm((f) => ({ ...f, alias: "" }));
-    go("home");
+    resetProfileViews();
   }
   const pageTitle: Record<string, string> = {
     home: "Block League",
@@ -569,10 +880,18 @@ function GameApp() {
   const gutter = width < 450 ? space.lg : space.xl;
   const boardWidth = Math.min(width - 2 * gutter, 424);
   const official = mode === "online",
+    asyncRoom = official && room?.kind === "async",
+    activeDraft = asyncRoom
+      ? profileDrafts?.[draftKey(local.server, roomCode)]
+      : undefined,
+    awaitingSync = awaitsSubmission(activeDraft),
     gameDisabled =
       busy ||
       game.done ||
-      (official && (!connected || room?.status !== "playing"));
+      (official &&
+        (room?.status !== "playing" ||
+          (!asyncRoom && !connected) ||
+          (asyncRoom && (!!submissionError || room.deadline <= now))));
   const canPlace =
     anchor && selected >= 0 && fits(game, selected, anchor[0], anchor[1]);
   const starsEarned = earnedStars(game);
@@ -584,53 +903,52 @@ function GameApp() {
       ? "You won this one!"
       : "Well played. A new lesson.";
   }
-  function matchResult() {
-    return (
-      <Card>
-        <Row style={{ justifyContent: "space-between" }}>
-          <Tag>Official result · final</Tag>
-          <ResultMark enabled={effective.motion} />
-        </Row>
-        <Txt size={28} display>
-          {roomResult()}
-        </Txt>
-        <Txt muted>
-          Final scores {room.result?.scores.join(" : ")}. Free rematches, equal
-          rules.
-        </Txt>
+  const showMatchResult = official && room?.status === "final" && !awaitingSync;
+  const matchResult = showMatchResult ? (
+    <Card>
+      <Row style={{ justifyContent: "space-between" }}>
+        <Tag>Official result · final</Tag>
+        <ResultMark enabled={effective.motion} />
+      </Row>
+      <Txt size={28} display>
+        {roomResult()}
+      </Txt>
+      <Txt muted>
+        Final scores {room.result?.scores.join(" : ")}. Free rematches, equal
+        rules.
+      </Txt>
+      <Button
+        title="Review both attempts"
+        onPress={() => {
+          setReplayStep(0);
+          go("replay");
+        }}
+      />
+      <Button
+        secondary
+        title="Free rematch"
+        onPress={() =>
+          run(async () => {
+            const r = await api("room.rematch", { code: roomCode });
+            setRoomCode(r.code);
+            receiveRoom(r);
+          })
+        }
+      />
+      <Row>
         <Button
-          title="Review both attempts"
-          onPress={() => {
-            setReplayStep(0);
-            go("replay");
-          }}
+          secondary
+          title="Share result"
+          onPress={() => run(() => shareResult())}
         />
         <Button
           secondary
-          title="Free rematch"
-          onPress={() =>
-            run(async () => {
-              const r = await api("room.rematch", { code: roomCode });
-              setRoomCode(r.code);
-              receiveRoom(r);
-            })
-          }
+          title="Save card"
+          onPress={() => run(() => shareResult(true))}
         />
-        <Row>
-          <Button
-            secondary
-            title="Share result"
-            onPress={() => run(() => shareResult())}
-          />
-          <Button
-            secondary
-            title="Save card"
-            onPress={() => run(() => shareResult(true))}
-          />
-        </Row>
-      </Card>
-    );
-  }
+      </Row>
+    </Card>
+  ) : null;
   function roomActions() {
     return (
       <>
@@ -658,16 +976,32 @@ function GameApp() {
       </>
     );
   }
-  const back = () => {
+  function leaveSafely(label: string, action: () => void) {
     if (screen === "game" && official && room?.status === "playing") {
       setDialog({
         title: "Leave the match screen?",
-        body: "Your opponent and the match clock keep running. Return within 60 seconds in a live match; asynchronous matches use the displayed deadline.",
-        label: "Go home",
-        action: () => go("home"),
+        body:
+          room.kind === "live"
+            ? "The match clock keeps running. Return within 60 seconds to keep playing."
+            : "The match deadline stays the same. You can return from your match list.",
+        label,
+        action,
       });
-    } else go("home");
-  };
+    } else action();
+  }
+  const back = () => leaveSafely("Go home", () => go("home"));
+  function closeInbox() {
+    setInboxOpen(false);
+    if (profile?.inbox?.some((item) => !item.read))
+      updateProfile({
+        inbox: profile.inbox.map((item) => ({ ...item, read: true })),
+      });
+  }
+  function exitHandoff() {
+    setHandoff(false);
+    setFamilyFirst(null);
+    go("home");
+  }
   return (
     <Design.Provider value={effective}>
       <SafeAreaView style={{ flex: 1, backgroundColor: t.bg }}>
@@ -718,25 +1052,53 @@ function GameApp() {
               </Row>
             </Pressable>
             {profile && (
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="Profile and settings"
-                onPress={() => go("profile")}
-                style={{
-                  minWidth: 48,
-                  minHeight: 48,
-                  borderRadius: 14,
-                  backgroundColor: t.soft,
-                  borderWidth: 1,
-                  borderColor: t.border,
-                  justifyContent: "center",
-                  alignItems: "center",
-                }}
-              >
-                <Txt bold>{profile.alias.slice(0, 2).toUpperCase()}</Txt>
-              </Pressable>
+              <>
+                <IconButton
+                  label="Notifications"
+                  symbol="bell"
+                  unread={profile.inbox?.some((item) => !item.read)}
+                  onPress={() => setInboxOpen(true)}
+                />
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={translate(
+                    "Profile and settings",
+                    settings.language,
+                  )}
+                  onPress={() =>
+                    leaveSafely("Open profile", () => go("profile"))
+                  }
+                  style={{
+                    minWidth: 48,
+                    minHeight: 48,
+                    borderRadius: 14,
+                    backgroundColor: t.soft,
+                    borderWidth: 1,
+                    borderColor: t.border,
+                    justifyContent: "center",
+                    alignItems: "center",
+                  }}
+                >
+                  <Txt bold>{profile.alias.slice(0, 2).toUpperCase()}</Txt>
+                </Pressable>
+              </>
             )}
           </Row>
+          {toast && !sharePreview && (
+            <View pointerEvents="box-none" style={{ height: 0, zIndex: 2 }}>
+              <View
+                pointerEvents="box-none"
+                style={{
+                  position: "absolute",
+                  top: space.sm,
+                  left: gutter,
+                  right: gutter,
+                }}
+              >
+                <Toast key={toast.id} message={toast} close={dismissToast} />
+              </View>
+            </View>
+          )}
           <Animated.ScrollView
             key={screen}
             testID="screen-content"
@@ -760,22 +1122,6 @@ function GameApp() {
             }}
             keyboardShouldPersistTaps="handled"
           >
-            {notice !== "" && (
-              <Pressable
-                accessibilityRole="alert"
-                onPress={() => setNotice("")}
-                style={{
-                  backgroundColor: t.notice,
-                  borderRadius: 14,
-                  padding: 16,
-                }}
-              >
-                <Txt>{notice}</Txt>
-                <Txt size={12} muted>
-                  Tap to dismiss
-                </Txt>
-              </Pressable>
-            )}
             {savedError && (
               <Card>
                 <Txt>Could not save on this device. Keep this page open.</Txt>
@@ -865,7 +1211,7 @@ function GameApp() {
                       onPress={() =>
                         run(async () => {
                           await Clipboard.setStringAsync(roomCode);
-                          setNotice("Invite code copied.");
+                          notify("Invite code copied.");
                         })
                       }
                     />
@@ -896,10 +1242,18 @@ function GameApp() {
                           secondary
                           title="Remove unstarted guest"
                           onPress={() =>
-                            run(async () =>
-                              receiveRoom(
-                                await api("room.remove", { code: roomCode }),
-                              ),
+                            confirmChange(
+                              "Remove this guest?",
+                              "Their seat will open for another invite. You can still share the same room code.",
+                              "Remove guest",
+                              () =>
+                                run(async () =>
+                                  receiveRoom(
+                                    await api("room.remove", {
+                                      code: roomCode,
+                                    }),
+                                  ),
+                                ),
                             )
                           }
                         />
@@ -907,9 +1261,61 @@ function GameApp() {
                   </Card>
                 ) : (
                   <>
-                    {official && !connected && (
+                    {asyncRoom && submissionError !== "" && (
+                      <Card style={{ borderColor: t.danger }}>
+                        <Txt bold>Offline moves could not be submitted</Txt>
+                        <Txt>{submissionError}</Txt>
+                        <Row>
+                          <Button
+                            secondary
+                            title="Retry submission"
+                            onPress={() => setSubmissionError("")}
+                          />
+                          <Button
+                            secondary
+                            title="Use server board"
+                            onPress={() =>
+                              confirmChange(
+                                "Discard unsubmitted moves?",
+                                "Only moves already confirmed by the server will remain.",
+                                "Discard offline moves",
+                                () =>
+                                  run(async () => {
+                                    const confirmed = await api("room.get", {
+                                      code: roomCode,
+                                    });
+                                    saveDraft(draftKey(local.server, roomCode));
+                                    receiveRoom(confirmed);
+                                    setSubmissionError("");
+                                  }),
+                              )
+                            }
+                          />
+                        </Row>
+                      </Card>
+                    )}
+                    {asyncRoom &&
+                      !submissionError &&
+                      (!connected || awaitingSync) && (
+                        <Card>
+                          <Txt bold accessibilityLiveRegion="polite">
+                            {connected
+                              ? "Submitting your moves…"
+                              : "Playing offline"}
+                          </Txt>
+                          <Txt>
+                            Moves on this device count toward the match after
+                            the server verifies them. Reopen this challenge when
+                            connected to submit before the deadline.
+                          </Txt>
+                          <Txt bold>
+                            {game.score.toLocaleString()} local points
+                          </Txt>
+                        </Card>
+                      )}
+                    {official && !asyncRoom && !connected && (
                       <Card>
-                        <Txt bold>Reconnecting…</Txt>
+                        <Txt bold>{submissionError || "Reconnecting…"}</Txt>
                         <Txt>
                           Moves are paused until your confirmed board returns.
                           The server clock keeps running.
@@ -956,7 +1362,7 @@ function GameApp() {
                         </Row>
                         <Txt size={13} muted>
                           {room?.kind === "live"
-                            ? `${Math.max(0, Math.ceil((room.deadline - Date.now()) / 1000))} seconds left`
+                            ? `${Math.max(0, Math.ceil((room.deadline - now) / 1000))} seconds left`
                             : `Finish by ${new Date(room?.deadline).toLocaleString()}`}{" "}
                           ·{" "}
                           {room?.status === "final"
@@ -1137,21 +1543,24 @@ function GameApp() {
                         <Button
                           secondary
                           title={s.end}
-                          disabled={
-                            busy || (official && room?.status !== "playing")
-                          }
+                          disabled={gameDisabled}
                           onPress={end}
                         />
                       </Row>
                     )}
-                    {official && room?.status === "final" ? (
-                      matchResult()
+                    {showMatchResult ? (
+                      matchResult
                     ) : official && game.done ? (
                       <Card>
-                        <Txt bold>Your attempt is complete.</Txt>
+                        <Txt bold>
+                          {awaitingSync
+                            ? "Attempt awaiting verification"
+                            : "Your attempt is complete."}
+                        </Txt>
                         <Txt>
-                          Waiting for your friend. Your score is saved; the
-                          winner is not final yet.
+                          {awaitingSync
+                            ? "Reconnect before the deadline to submit your moves."
+                            : "Waiting for your friend. Your score is saved; the winner is not final yet."}
                         </Txt>
                         <Button
                           secondary
@@ -1407,6 +1816,29 @@ function GameApp() {
                     })
                   }
                 />
+                {Object.values(profileDrafts ?? {})
+                  .filter(
+                    (draft) =>
+                      draftKey(draft.server, draft.code) ===
+                        draftKey(local.server, draft.code) &&
+                      !rooms.some((match) => match.code === draft.code),
+                  )
+                  .map((draft) => (
+                    <Card key={draft.code}>
+                      <Txt bold>Saved async challenge</Txt>
+                      <Txt>
+                        {draft.code} ·{" "}
+                        {new Date(draft.deadline).toLocaleString(
+                          settings.language,
+                        )}
+                      </Txt>
+                      <Button
+                        secondary
+                        title="Open saved challenge"
+                        onPress={() => run(() => enterRoom(draft.code))}
+                      />
+                    </Card>
+                  ))}
                 {rooms.map((r) => (
                   <Card key={r.code}>
                     <Txt bold>
@@ -1491,7 +1923,7 @@ function GameApp() {
                           { code: form.teamCode },
                           token,
                         );
-                        setNotice(r.message);
+                        notify(r.message);
                       })
                     }
                   />
@@ -1581,16 +2013,22 @@ function GameApp() {
                         secondary
                         title={`Enter ${t.name} & lock roster`}
                         onPress={() =>
-                          run(async () => {
-                            setLeague(
-                              await api("league.enter", {
-                                code: form.leagueCode,
-                                team: t.id,
+                          confirmChange(
+                            "Enter season and lock roster?",
+                            "Your three approved players will be locked in for the season. Substitutions are unavailable.",
+                            "Enter and lock roster",
+                            () =>
+                              run(async () => {
+                                setLeague(
+                                  await api("league.enter", {
+                                    code: form.leagueCode,
+                                    team: t.id,
+                                  }),
+                                );
+                                await refreshClub();
+                                go("league");
                               }),
-                            );
-                            await refreshClub();
-                            go("league");
-                          })
+                          )
                         }
                       />
                     ))}
@@ -1610,7 +2048,7 @@ function GameApp() {
                     onPress={() =>
                       run(async () => {
                         await Clipboard.setStringAsync(team.code);
-                        setNotice("Copied. Share only with people you know.");
+                        notify("Copied. Share only with people you know.");
                       })
                     }
                   />
@@ -1627,13 +2065,19 @@ function GameApp() {
                             secondary
                             title="Remove"
                             onPress={() =>
-                              run(async () => {
-                                await api("team.remove", {
-                                  id: team.id,
-                                  member: id,
-                                });
-                                await refreshClub();
-                              })
+                              confirmChange(
+                                "Remove this team member?",
+                                "They will lose their place on this roster. They can request to join again before it locks.",
+                                "Remove member",
+                                () =>
+                                  run(async () => {
+                                    await api("team.remove", {
+                                      id: team.id,
+                                      member: id,
+                                    });
+                                    await refreshClub();
+                                  }),
+                              )
                             }
                           />
                         )}
@@ -1691,7 +2135,7 @@ function GameApp() {
                           target: team.id,
                           reason: form.report,
                         });
-                        setNotice("Report recorded: " + r.id.slice(0, 8));
+                        notify("Report recorded: " + r.id.slice(0, 8));
                       })
                     }
                   />
@@ -1723,7 +2167,7 @@ function GameApp() {
                     onPress={() =>
                       run(async () => {
                         await Clipboard.setStringAsync(league.code);
-                        setNotice("Copied league code.");
+                        notify("Copied league code.");
                       })
                     }
                   />
@@ -1742,10 +2186,16 @@ function GameApp() {
                         title="Lock entries & start season"
                         disabled={league.teams.length !== league.size}
                         onPress={() =>
-                          run(async () =>
-                            setLeague(
-                              await api("league.start", { id: league.id }),
-                            ),
+                          confirmChange(
+                            "Start this season?",
+                            "Entries will close and fixtures will become available to the teams.",
+                            "Start season",
+                            () =>
+                              run(async () =>
+                                setLeague(
+                                  await api("league.start", { id: league.id }),
+                                ),
+                              ),
                           )
                         }
                       />
@@ -1962,7 +2412,7 @@ function GameApp() {
                             target: roomCode,
                             reason: form.report,
                           });
-                          setNotice("Report recorded for review.");
+                          notify("Report recorded for review.");
                         })
                       }
                     />
@@ -2041,20 +2491,12 @@ function GameApp() {
                   {local.profiles.map((p) => (
                     <Button
                       key={p.id}
+                      disabled={busy}
                       secondary={p.id !== profile.id}
                       title={`${p.alias} · ${p.age}`}
                       onPress={() => {
                         setLocal((l) => ({ ...l, active: p.id }));
-                        setRoomCode("");
-                        setRoom(null);
-                        setTeam(null);
-                        setLeague(null);
-                        setTeams([]);
-                        setLeagues([]);
-                        setRooms([]);
-                        setSeconds(0);
-                        reminded.current = 0;
-                        go("home");
+                        resetProfileViews();
                       }}
                     />
                   ))}
@@ -2096,7 +2538,7 @@ function GameApp() {
                       run(async () => {
                         const token = await ensureOnline();
                         updateProfile({ user: await api("me", {}, token) });
-                        setNotice("Online account connected.");
+                        notify("Online account connected.");
                       })
                     }
                   />
@@ -2107,7 +2549,7 @@ function GameApp() {
                       onPress={() =>
                         run(async () => {
                           await Clipboard.setStringAsync(profile.recovery!);
-                          setNotice(
+                          notify(
                             "Copied. Store it privately; anyone with this key can access this account.",
                           );
                         })
@@ -2142,8 +2584,7 @@ function GameApp() {
                           profiles: [...l.profiles, p],
                           active: p.id,
                         }));
-                        setForm((f) => ({ ...f, recovery: "" }));
-                        go("home");
+                        resetProfileViews();
                       })
                     }
                   />
@@ -2241,10 +2682,28 @@ function GameApp() {
                   </Txt>
                   <Toggle
                     label="Quiet mode"
-                    description="Silence in-app break reminders. No urgency notifications."
+                    description="Mute break and competition reminders until you turn quiet mode off."
                     value={settings.quiet}
                     onValueChange={(v: boolean) => setSetting("quiet", v)}
                   />
+                  <Row>
+                    <Button
+                      secondary
+                      title="Mute for one hour"
+                      disabled={settings.quiet || quiet}
+                      onPress={() => {
+                        setSetting("quietUntil", Date.now() + 3600000);
+                        notify("Reminders muted for one hour.", "info");
+                      }}
+                    />
+                    {!settings.quiet && quiet && (
+                      <Button
+                        secondary
+                        title="Resume reminders"
+                        onPress={() => setSetting("quietUntil", undefined)}
+                      />
+                    )}
+                  </Row>
                   <Row>
                     {[0, 10, 20, 30].map((v) => (
                       <Button
@@ -2479,7 +2938,7 @@ function GameApp() {
                                     outcome,
                                   });
                                   updateProfile({ user: await api("me") });
-                                  setNotice(`Test reward ${r.state}.`);
+                                  notify(`Test reward ${r.state}.`);
                                   setOffer(null);
                                 })
                               }
@@ -2511,7 +2970,7 @@ function GameApp() {
                       run(async () => {
                         const token = await ensureOnline();
                         const r = await api("purchase.restore", {}, token);
-                        setNotice(r.message);
+                        notify(r.message);
                       })
                     }
                   />
@@ -2577,130 +3036,91 @@ function GameApp() {
             </Row>
           )}
         </View>
-        <Modal
-          visible={!!dialog}
-          transparent
-          animationType={effective.motion ? "fade" : "none"}
-          onRequestClose={() => setDialog(null)}
-        >
-          <View
-            style={{
-              flex: 1,
-              backgroundColor: "#10202B88",
-              justifyContent: "center",
-              padding: 24,
+        {dialog && <Dialog content={dialog} close={() => setDialog(null)} />}
+        {inboxOpen && profile && (
+          <NotificationDrawer
+            items={profile.inbox ?? []}
+            onClose={closeInbox}
+            openMatch={(code) => {
+              closeInbox();
+              leaveSafely("Open match", () => run(() => enterRoom(code)));
+            }}
+          />
+        )}
+        {sharePreview && (
+          <Overlay
+            title="Result card"
+            onClose={() => {
+              if (!busy) setSharePreview(false);
             }}
           >
-            <View
-              accessibilityViewIsModal
-              style={{ width: "100%", maxWidth: 480, alignSelf: "center" }}
-            >
-              <Card>
-                <Txt size={25} bold>
-                  {dialog?.title}
-                </Txt>
-                <Txt>{dialog?.body}</Txt>
-                {dialog?.action && (
-                  <Button
-                    title={dialog.label || "Continue"}
-                    onPress={() => {
-                      const fn = dialog.action;
-                      setDialog(null);
-                      fn?.();
-                    }}
-                  />
-                )}
-                <Button
-                  secondary
-                  title={dialog?.action ? "Cancel" : "Got it"}
-                  onPress={() => setDialog(null)}
-                />
-              </Card>
+            {toast && (
+              <Toast key={toast.id} message={toast} close={dismissToast} />
+            )}
+            <View style={{ alignItems: "center" }}>
+              <ShareCard
+                ref={shareRef}
+                width={Math.min(280, width - 68)}
+                score={game.score}
+                mode={
+                  official
+                    ? "Server-validated Face-Off"
+                    : resultMode || "Unranked practice"
+                }
+                seed={game.seed}
+              />
             </View>
-          </View>
-        </Modal>
-        <Modal
-          visible={sharePreview}
-          transparent
-          animationType={effective.motion ? "fade" : "none"}
-          onRequestClose={() => setSharePreview(false)}
-        >
-          <View
-            style={{
-              flex: 1,
-              backgroundColor: "#10202BDD",
-              justifyContent: "center",
-              alignItems: "center",
-              padding: 12,
-              gap: 14,
-            }}
+            <Row style={{ justifyContent: "flex-end" }}>
+              <Button
+                secondary
+                title="Close preview"
+                disabled={busy}
+                onPress={() => setSharePreview(false)}
+              />
+              <Button
+                title="Save / share PNG"
+                disabled={busy}
+                onPress={() =>
+                  run(async () => {
+                    setToast(null);
+                    await exportCard(
+                      game.score,
+                      official
+                        ? "Server-validated Face-Off"
+                        : resultMode || "Unranked practice",
+                      game.seed,
+                      shareRef,
+                    );
+                    setSharePreview(false);
+                  })
+                }
+              />
+            </Row>
+          </Overlay>
+        )}
+        {handoff && familyFirst && (
+          <Overlay
+            title="Pass the phone."
+            dismissBackdrop={false}
+            onClose={exitHandoff}
           >
-            <ShareCard
-              ref={shareRef}
-              score={game.score}
-              mode={
-                official
-                  ? "Server-validated Face-Off"
-                  : resultMode || "Unranked practice"
-              }
-              seed={game.seed}
-            />
+            <Txt>
+              Player 1’s attempt is saved and hidden. Player 2 gets a fresh
+              board with the same pieces. This is unranked family play.
+            </Txt>
             <Button
-              title="Save / share PNG"
-              onPress={() =>
-                run(async () => {
-                  await exportCard(
-                    game.score,
-                    official
-                      ? "Server-validated Face-Off"
-                      : resultMode || "Unranked practice",
-                    game.seed,
-                    shareRef,
-                  );
-                  setSharePreview(false);
-                })
-              }
-            />
-            <Button
-              secondary
-              title="Close preview"
-              onPress={() => setSharePreview(false)}
-            />
-          </View>
-        </Modal>
-        <Modal visible={handoff} transparent={false} onRequestClose={() => {}}>
-          <Design.Provider value={effective}>
-            <SafeAreaView
-              style={{
-                flex: 1,
-                backgroundColor: t.bg,
-                justifyContent: "center",
-                padding: 28,
+              title="Player 2 — I’m ready"
+              onPress={() => {
+                setGame(createGame(familyFirst.seed, 30));
+                setFamilySecond(true);
+                setHandoff(false);
+                setSelected(-1);
+                setAnchor(null);
               }}
-            >
-              <Card>
-                <Tag>LOCAL FAMILY DUEL</Tag>
-                <Txt size={32} bold>
-                  Pass the phone.
-                </Txt>
-                <Txt>
-                  Player 1’s attempt is saved and hidden. Player 2 gets a fresh
-                  board with the same pieces. This is unranked family play.
-                </Txt>
-                <Button
-                  title="Player 2 — I’m ready"
-                  onPress={() => {
-                    setGame(createGame(familyFirst!.seed, 30));
-                    setFamilySecond(true);
-                    setHandoff(false);
-                    setSelected(-1);
-                    setAnchor(null);
-                  }}
-                />
-              </Card>
-            </SafeAreaView>
-          </Design.Provider>
-        </Modal>
+            />
+            <Button secondary title="End family duel" onPress={exitHandoff} />
+          </Overlay>
+        )}
       </SafeAreaView>
     </Design.Provider>
   );

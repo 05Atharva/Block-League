@@ -236,10 +236,25 @@ try {
   await guest
     .getByRole("button", { name: "Join private room", exact: true })
     .click();
+  await page
+    .getByRole("button", { name: "Remove unstarted guest", exact: true })
+    .click();
+  await page
+    .getByRole("dialog", { name: "Remove this guest?" })
+    .getByRole("button", { name: "Cancel", exact: true })
+    .click();
   await guest.getByRole("button", { name: "I’m ready", exact: true }).click();
   await page.getByRole("button", { name: "I’m ready", exact: true }).click();
   await page.getByTestId("game-board").waitFor();
   await guest.getByTestId("game-board").waitFor();
+  await page
+    .getByRole("button", { name: "Profile and settings", exact: true })
+    .click();
+  await page
+    .getByRole("dialog", { name: "Leave the match screen?" })
+    .getByRole("button", { name: "Cancel", exact: true })
+    .click();
+  await page.getByTestId("game-board").waitFor();
   for (const p of [page, guest]) {
     await p.getByTestId("piece-0").click();
     await p.getByTestId("cell-0-0").click();

@@ -60,11 +60,14 @@ export function Button({
   testID,
   style,
   indicator,
+  destructive = false,
 }: any) {
   const s = useContext(Design),
     t = themes[s.theme];
   const [press] = useState(() => new Animated.Value(1));
   const motion = s.motion && !s.lowEffects;
+  const fill = destructive ? t.danger : secondary ? t.surface : t.action;
+  const ink = destructive ? t.onDanger : secondary ? t.text : t.onAction;
   useEffect(() => {
     if (!motion || disabled) press.setValue(1);
     return () => press.stopAnimation();
@@ -92,9 +95,9 @@ export function Button({
           paddingHorizontal: space.lg,
           paddingVertical: space.md,
           borderRadius: radius.button,
-          backgroundColor: secondary ? t.surface : t.action,
+          backgroundColor: fill,
           borderWidth: 1,
-          borderColor: secondary ? t.border : t.action,
+          borderColor: secondary && !destructive ? t.border : fill,
           alignItems: "center",
           justifyContent: "center",
           opacity: disabled ? 0.48 : pressed ? 0.84 : 1,
@@ -114,18 +117,14 @@ export function Button({
         <Txt
           bold
           style={{
-            color: secondary ? t.text : t.onAction,
+            color: ink,
             textAlign: "center",
           }}
         >
           {title}
         </Txt>
         {indicator && (
-          <Txt
-            accessibilityElementsHidden
-            aria-hidden
-            style={{ color: secondary ? t.text : t.onAction }}
-          >
+          <Txt accessibilityElementsHidden aria-hidden style={{ color: ink }}>
             {indicator}
           </Txt>
         )}
@@ -171,7 +170,7 @@ export function Input({
         {label}
       </Txt>
       <TextInput
-        accessibilityLabel={label}
+        accessibilityLabel={translate(label, s.language)}
         value={value}
         onChangeText={onChangeText}
         placeholderTextColor={t.muted}
@@ -223,7 +222,7 @@ export function Toggle({
   onValueChange,
   disabled,
 }: any) {
-  const { theme } = useContext(Design);
+  const { theme, language } = useContext(Design);
   const t = themes[theme];
   return (
     <Row style={{ justifyContent: "space-between", paddingVertical: 10 }}>
@@ -236,7 +235,7 @@ export function Toggle({
         )}
       </View>
       <Switch
-        accessibilityLabel={label}
+        accessibilityLabel={translate(label, language)}
         value={value}
         trackColor={{ false: t.border, true: t.brand }}
         onValueChange={onValueChange}

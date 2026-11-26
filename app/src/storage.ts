@@ -2,6 +2,8 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { defaults } from "./design";
 import type { Settings } from "./design";
 import type { Game } from "../../shared/engine";
+import type { InboxItem } from "./notifications";
+import type { AsyncDraft } from "./asyncDraft";
 export type Profile = {
   id: string;
   alias: string;
@@ -19,6 +21,8 @@ export type Profile = {
   guardianPin?: string;
   social?: boolean;
   sharing?: boolean;
+  inbox?: InboxItem[];
+  asyncDrafts?: Record<string, AsyncDraft>;
   history: { score: number; mode: string; at: number }[];
 };
 export type Local = { profiles: Profile[]; active: string; server: string };

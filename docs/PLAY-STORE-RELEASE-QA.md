@@ -2,6 +2,21 @@
 
 27 November 2026 · Baseline candidate `47281ad`
 
+## 28 November follow-up
+
+The six findings from the independent Android release QA review have regression coverage.
+
+| Finding | Retest |
+|---|---|
+| BL-NET-01 · failed persistence | A refused write left the board unchanged on the next successful read and after restart. An explicit retry applied exactly one move. |
+| BL-NET-03 · revoked social access | A revoked protected captain and a team containing a revoked member could no longer enter. The independent migration case passed under production flags. |
+| PLY-D01 · missing privacy link | Onboarding and profile opened the privacy policy, which linked to account deletion. The store-flagged browser verified the HTTPS route against a local service with synthetic operator details. |
+| BL-NET-02 · delayed Finish | After reconnect expiry, repeating Finish preserved the original reason in the completed replay. |
+| UI-D01 · stale drag preview | Outside release and touch cancellation both removed the old valid preview and disabled confirmation. A valid drag still required confirmation. |
+| ENG-D01 · malformed action IDs | Numeric, boolean, object and invalid-length IDs were rejected for new moves. Existing accepted history remained replayable. |
+
+The retest passed 44 baseline tests, nine independent competition checks, all ten independent engine checks across 288 seeded games, 16 browser UI checks, seven interaction checks and four motion checks. The release harness completed two-player Face-Off and all 96 Championship duels. Privacy layout was inspected at 320 px in light and dark. A signed artifact, real production policy and deletion URLs, Android device acceptance and Play Console declarations remain separate release gates. [Google Play checklist](GOOGLE-PLAY-RELEASE.md)
+
 ## Fixes and release status
 
 All three reproduced defects have fixes and regression checks. A fully enrolled season can start after its invite deadline. An expired, underfilled season releases its team locks. Completed seasons retain private roster snapshots so the same team can join a new season with different players. Async timers now finish only attempts that are still open.

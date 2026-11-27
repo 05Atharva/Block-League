@@ -30,6 +30,8 @@ New Championship registration is disabled by default. Set `ENABLE_CHAMPIONSHIP=1
 
 ## Android store build and account deletion
 
+Use the [Google Play release checklist](GOOGLE-PLAY-RELEASE.md) for privacy policy configuration, hosted endpoint checks, signed-artifact evidence and Console declarations.
+
 The production build profile in `app/eas.json` produces an Android App Bundle. Set `EXPO_PUBLIC_API_URL` and `EXPO_PUBLIC_WEB_URL` to deployed HTTPS origins in the EAS production environment. From `app/`, use `eas build --platform android --profile production` with the project's upload signing configuration. The packaged client uses that API origin and hides pilot commerce. Verify target API, 16 KB compatibility and the signed installation from an applicable Play test track before public rollout. [EAS build configuration](https://docs.expo.dev/build/eas-json/) · [Google Play technical requirements](https://support.google.com/googleplay/android-developer/answer/17492799)
 
 Set `BLOCK_LEAGUE_PRODUCTION=1` on the backend. Run behind an HTTPS proxy and set `DATA_FILE` to an absolute path on a persistent volume. The current file store is for a single writer. Verify backup and restore, rate limiting behind the proxy, and two-device multiplayer against the actual deployment. Production blocks new 7–12 online accounts and protected live social play. The child audience declaration and privacy review still apply to the actual product and distribution choices.

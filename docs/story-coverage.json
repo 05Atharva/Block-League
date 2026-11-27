@@ -206,8 +206,8 @@
     "release": "V1.1",
     "acceptance": "Invites, roster limits and entry deadline are shown.",
     "status": "Implemented",
-    "implementation": "Private 4- and 8-team leagues support up to 40 characters in season names. Invitations, roster limits and expiry are visible during open registration.",
-    "validation": "Browser creation, preserved name and closed-invitation checks; server limits test."
+    "implementation": "Private 4- and 8-team leagues support up to 40 characters in season names. Invitation expiry closes signups. A filled league can still start after that deadline.",
+    "validation": "Browser late-start and server expiry checks."
   },
   {
     "id": "US-22",
@@ -216,8 +216,8 @@
     "release": "V1.1",
     "acceptance": "Post-lock replacements follow an explicit recorded rule.",
     "status": "Implemented",
-    "implementation": "Explicit confirmation before entering a team and locking its three approved players. Post-lock edits are rejected.",
-    "validation": "Roster lock and membership tests."
+    "implementation": "Entering locks three approved players. Completing a season or expiring an underfilled one releases the team lock. Historical rosters retain their players and access rules.",
+    "validation": "Roster lock, repeat season and archive privacy tests."
   },
   {
     "id": "US-23",

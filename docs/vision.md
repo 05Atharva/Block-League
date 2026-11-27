@@ -1,7 +1,7 @@
 # Block League — Product Vision
 
 **Owner:** Atharva Kanawade  
-**Document:** `vision.md` · Version 1.0 · 26 November 2026  
+**Document:** `vision.md` · Version 1.1 · 28 November 2026\
 **Status:** Research-informed vision baseline for product, design and engineering review. This document does not certify launch readiness or establish product–market fit.  
 **Product:** A mobile block-puzzle game, built around relaxed solo play, fair friend competition and private team seasons.
 
@@ -28,7 +28,7 @@ Four evidence labels apply throughout:
 | **Hypothesis** | A proposition about player demand, retention, sharing or commercial performance that still needs testing. |
 | **Baseline to test** | A concrete initial parameter, such as a placement limit, that can change through a documented rules version. |
 
-External sources were checked on **26 November 2026**. Internal test results below are historical records from the build, not tests rerun for this document. No player interviews, revenue experiments or independent competitor playtests were conducted for this research.
+External sources were checked for the baseline on **26 November 2026**. The replayability update checked the relevant publisher listings on **28 November 2026**. The test counts reflect recorded QA runs. Player interviews, revenue experiments and independent competitor playtests remain part of the research plan.
 
 ## 3. The player problem and opportunity
 
@@ -123,21 +123,23 @@ a move with no clear resets streak to 0
 
 A four-cell placement clearing two lines on the first clearing move earns 440 points. These values are an initial balance model, not demonstrated optimal difficulty.
 
-Competitive generation uses a deterministic, versioned sequence. It must not vary by device, advertising value or a player's board state. Equal sequences provide equal starting opportunities; players' choices still produce different boards. Endless play is not promised to remain solvable forever.
+Competitive generation uses a deterministic, versioned sequence. It must not vary by device, advertising value or a player's board state. Equal sequences provide equal starting opportunities; players' choices still produce different boards. Classic remains open-ended and untimed until a player stops or the board locks out. A new run starts on a fresh board.
 
 ### 7.2 Mode portfolio
 
 | Mode | Intended role | Important boundary |
 |---|---|---|
 | Learn / beginner practice | Teach placement, clears and planning. | Free help; assisted/unranked results. |
-| Classic | Relaxed repeat play and personal improvement. | Untimed, autosaved, playable offline; keep assisted records separate. |
+| Classic | Open-ended solo play and personal improvement. | Untimed, autosaved and playable offline. A run locks out when no piece fits. Its earned records survive a restart. |
 | Face-Off | Short private friend competition. | Server-validated, equal sequence and fixed published limits. |
 | Asynchronous challenge | Compete around different schedules. | Online authoritative attempt within a visible deadline; not unrestricted offline ranked submission. |
 | Local Family Duel | Share one device. | Pass-and-play, private handoff and explicitly unranked. |
 | Mini League | Prove the shared-season experience. | Four teams; roster and attendance rules published before entry. |
 | Championship | Extend a successful league format. | Eight teams with seeded playoffs; only expose when operationally ready. |
-| Daily Board | Optional later shared challenge. | One verified attempt; practice separate; no punitive streak loss. |
-| Journey | Optional authored learning content. | Proposed 30 challenges need design and solution validation; not already a finished campaign. |
+| Weekly Board | Proposed first shared puzzle outside matches and seasons. | Same versioned board and pieces for everyone. Private friend comparisons and replayable practice. |
+| Daily Board | Possible faster cadence after the weekly format proves its value. | One verified attempt, separate practice and no streak penalty. |
+| Journey | Proposed short authored puzzles that teach specific skills. | Start with six validated boards and expand toward the original 30-board proposal if players return. |
+| Open Table | Proposed optional continuation through fresh boards. | Separate unranked save and progress. Classic records remain final. |
 | Blitz | Optional later speed variant. | Separate rules and rankings; never the default. |
 
 Code already present for a mode does not determine when it should launch. Public scope follows player need and readiness gates.
@@ -186,6 +188,32 @@ Share cards should prioritise a legible achievement, mode, score or result, and 
 A recipient should be able to understand the invitation, join through a safe route and start the intended challenge. Native share sheets, deep links, expired links and missing-app fallbacks require actual-device tests. A generated image alone does not establish a working acquisition loop.
 
 Cosmetics are appearance-only. Recognise participation without punishing missed days, requiring daily logins or making a player responsible for a friend's ad choice. Optional reminders must respect quiet settings. Do not require contact-book upload, sharing, ratings or purchases to obtain ordinary play.
+
+### 8.1 What would make me return as a player?
+
+I want to open the game and pick up my board in one tap. When a run ends, show me what I achieved and offer a fresh board immediately. Give me a small puzzle if I have only a few minutes and something specific to compare if a friend is playing. Let those moments earn visual rewards I can keep.
+
+The publisher pages point to three different reasons to return. Block Blast offers quick-to-learn block placement, Candy Crush adds new authored levels, and Subway Surfers pairs open-ended runs with a changing theme. Block League can combine a strong repeatable puzzle, a small supply of authored challenges and shared club goals. Judge that combination through player sessions and repeat participation. [S1] [S17] [S18]
+
+The latest QA retest reached Solo lockout, finished a two-player Face-Off and completed the 96-duel Championship. Use those journeys as regression checks when adding a reason to return. Observe which players choose another run or invite a friend, and what makes them stop. [QA retest](PLAY-STORE-RELEASE-QA.md#28-november-follow-up)
+
+### 8.2 Replayability roadmap
+
+| Priority | Proposal | How it works and what to test |
+|---|---|---|
+| **First** | **Classic and personal records** | Keep **Play** or **Resume** prominent. At lockout, show score versus personal best, lines cleared and the best clear of the run. Offer **Play again** and **Review moves**. Save the earned result before either action. Test whether players voluntarily start another board and can resume after an interruption. |
+| **Next** | **Weekly Board** | Start with a fixed board and piece sequence, a visible placement limit, and one official result per eligible player. Players can compare with invited friends or play privately. Use a server-issued board and deadline shown in local time. Keep past boards available for unranked practice. Start weekly to give friends with different schedules time to finish. Test whether they return for the next board. |
+| **Then** | **Journey** | Offer six authored boards that teach decisions such as preserving a corner or setting up a crossing clear. A first example asks the player to clear a row and column on the same move within four placements. Verify a solution under the published rules before exposing each board. Let players retry freely and return to Classic at any point. Expand toward 30 when people complete the first pack and voluntarily try another. |
+| **Experiment** | **Open Table** | After Classic lockout, offer an optional fresh board in a separate, offline-capable unranked session. Each lockout records the board and carries forward completed boards and total lines cleared. Players choose whether to deal another board or leave. Keep a separate save so starting or resuming Open Table leaves Classic intact. Test demand for extended play before giving it a permanent home-screen slot. |
+
+Use the same core placement rules and authored motion throughout. Keep official Face-Off and season limits intact. Classic runs, assisted progress and verified competition results each retain their own record. Preserve ordinary play when players miss a board, skip an event or decline an offer.
+
+### 8.3 Themes players can earn and keep
+
+- **Monsoon Tile** uses slate-blue board wells, glazed indigo tile faces and a soft cyan line-clear trace. Unlock it on a first crossing clear.
+- **Kiln & Clay** pairs warm paper and matte terracotta with a cobalt accent. Unlock it after completing the first Journey pack at any pace.
+
+Themes are permanent, optional and appearance-only. Keep tile silhouettes, patterns, tap targets and placement cues consistent across light, dark and high contrast. A theme can add a short variation to the existing line-clear or result animation. Reduced motion retains the same information through a static cue. Test previews and earned unlocks at 200% text on small phones before shipping a theme.
 
 ## 9. Visual, interaction and motion direction
 
@@ -316,12 +344,12 @@ Treat these as readiness stages rather than fixed delivery dates. Several later-
 
 | Stage | What we expose or learn | Gate before expansion |
 |---|---|---|
-| **A. Core and device validation** | Learn, Classic, controls, autosave, visual/motion system. | Real players understand placement and lockout; representative devices handle core input; settings work without losing a board. |
+| **A. Core and device validation** | Learn, open-ended Classic, one-tap replay, personal records, controls, autosave and visual/motion system. | Players understand placement and lockout and can start another run. Representative devices handle core input and restore saves across settings changes and interruptions. |
 | **B. Private adult competition pilot** | Invitations, Face-Off, async challenges, replay, reporting and sharing. | Two native devices agree on authoritative outcomes; reconnect/expiry/duplicate-action tests pass; operational recovery and private access are reviewed. |
 | **C. Mini League pilot** | Four-team seasons and flexible fixture windows. | Full seasons complete, tie/no-show paths are exercised, organiser burden is acceptable and groups choose to return. |
 | **D. Adult monetisation pilot** | Real optional rewarded cosmetics, then limited solo-break ads if justified. | Test-unit and provider verification pass; age/consent routing, decline/failure paths and measurement are working. Retention and trust guardrails are set before exposure. |
 | **E. Broader family and language release** | Protected younger players, family leagues, complete Hindi/Marathi and stronger recovery. | Guardian/privacy/store review, moderation operations, native accessibility and native-speaker acceptance complete. |
-| **F. Expansion** | Championship, Daily Board, Journey, purchases and optional new modes. | Each addition addresses observed demand without weakening the core loop; billing and restore tested before purchases. |
+| **F. Expansion** | Pilot Weekly Board, then a small Journey pack and earned themes. Test Open Table if players want a longer session. Consider Daily Board and Championship expansion after participation is established. | Compare voluntary replay, next-board return and completed private challenges with the pilot baseline. Confirm native-device performance and accessible controls before expansion. Billing and restore require their own acceptance. |
 
 An early public release need not contain every long-term story. Do not market a protected child service, monetised release or fully accessible game before the corresponding gate passes.
 
@@ -350,6 +378,9 @@ The distinguishing social measure is **returning private groups that complete co
 |---|---|
 | Tutorial completion | Players finishing the guided sequence divided by players starting it. |
 | First meaningful play | New eligible players completing their first round/duel, with abandoned starts reported separately. |
+| Voluntary solo replay | Completed Classic runs followed by a fresh run, with quick exits still available and resumed saves counted separately. |
+| Repeat shared-board participation | Weekly Board players who finish the next board. Track solo completions and repeat participation by private groups separately. |
+| Authored puzzle follow-through | Journey players who complete the first pack and choose another. Record where players stall and whether the objective was clear. |
 | D1/D7 retention | Share of a new-player cohort returning on day 1/day 7 after first play; freeze timezone and day-window definitions before analysis. |
 | Invitation conversion | Eligible invite recipients who start and finish the intended activity; distinguish opened links from people and filter repeated opens. |
 | Rematch rate | Finalised duels followed by a mutually started fresh rematch; distinguish an offer from acceptance. |
@@ -479,7 +510,7 @@ The following table preserves every original story ID and its current recorded s
 
 ## 19. Sources and project records
 
-All external sources below were accessed on **26 November 2026**. Live pages can change; recheck policies and SDK requirements before release. Publisher listings are first-party feature descriptions, not independent audits. Sources support the factual statements associated with them; our audience choice, rules, frequency caps, research samples and roadmap are product proposals.
+Baseline sources were accessed on **26 November 2026**. The replayability update reviewed [S1], [S17] and [S18] on **28 November 2026**. Publisher listings record advertised features. The audience, rules, frequency caps and roadmap are Block League proposals.
 
 ### External primary sources
 
@@ -499,6 +530,8 @@ All external sources below were accessed on **26 November 2026**. Live pages can
 - **[S14] Google Play — Payments.** Digital goods, ad-free functionality and applicable billing exceptions. <https://support.google.com/googleplay/android-developer/answer/9858738>
 - **[S15] Apple — App Review Guidelines.** In-app purchase and user-generated-content review requirements; regional provisions require release-time review. <https://developer.apple.com/app-store/review/guidelines/>
 - **[S16] Google Play — Data practices in Families apps.** Restrictions on transmitting specified identifiers from children and unknown-age users. <https://support.google.com/googleplay/android-developer/answer/11043825>
+- **[S17] Google Play — Candy Crush Saga, King.** Authored levels and ongoing additions. <https://play.google.com/store/apps/details?id=com.king.candycrushsaga>
+- **[S18] SYBO — Subway Surfers.** Endless run format and rotating city settings. <https://sybogames.com/>
 
 ### Internal project evidence
 

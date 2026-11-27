@@ -104,6 +104,57 @@ test("guardian-approved family member can enter an invited league fixture, and r
     /guardian/,
   );
 });
+test("an underfilled season expires and releases its roster, while the archived roster stays private", () => {
+  let now = Date.now();
+  const s = new Service(undefined, () => now);
+  const roster = ["Captain", "Original A", "Original B"].map((alias) =>
+    s.dispatch("register", { alias, age: "25-44" }),
+  );
+  const [captain, ...members] = roster;
+  const create = (name: string) =>
+    s.dispatch("league.create", { name, size: 4 }, captain.token);
+  const initial = create("Underfilled season");
+  const team = s.dispatch(
+    "team.create",
+    { name: "Try again team" },
+    captain.token,
+  );
+  for (const member of members) {
+    s.dispatch("team.request", { code: team.code }, member.token);
+    s.dispatch(
+      "team.approve",
+      { id: team.id, member: member.user.id },
+      captain.token,
+    );
+  }
+  s.dispatch(
+    "league.enter",
+    { code: initial.code, team: team.id },
+    captain.token,
+  );
+  now = initial.deadline;
+  assert.equal(
+    s.dispatch("league.get", { id: initial.id }, captain.token).status,
+    "expired",
+  );
+  assert.throws(
+    () => s.dispatch("league.start", { id: initial.id }, captain.token),
+    /awaiting its first fixture/i,
+  );
+  const next = create("Second season");
+  assert.equal(
+    s.dispatch(
+      "league.enter",
+      { code: next.code, team: team.id },
+      captain.token,
+    ).teams.length,
+    1,
+  );
+  assert.equal(
+    s.dispatch("league.get", { id: initial.id }, members[0].token).status,
+    "expired",
+  );
+});
 function playRoom(
   s: Service,
   code: string,

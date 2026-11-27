@@ -45,7 +45,13 @@ import { BrandMark } from "./src/brand";
 import { PlayHome } from "./src/PlayHome";
 import { ResultMark, ScoreBeat } from "./src/GameFeedback";
 import { useScreenArrival } from "./src/motion";
-import { defaultServer, load, persist, newProfile } from "./src/storage";
+import {
+  defaultServer,
+  load,
+  persist,
+  newProfile,
+  storeBuild,
+} from "./src/storage";
 import type { Local, Profile } from "./src/storage";
 import { NetworkError, RequestError, request } from "./src/api";
 import { awaitsSubmission, draftKey } from "./src/asyncDraft";
@@ -483,6 +489,8 @@ function GameApp() {
     return request(local.server, token, action, data);
   }
   async function ensureOnline() {
+    if (storeBuild && profile?.age === "7-12")
+      throw Error("Protected profiles play offline in this release");
     if (profile?.token) return profile.token;
     if (profile && onlineToken.current?.profile === profile.id)
       return onlineToken.current.token;
@@ -494,6 +502,39 @@ function GameApp() {
     onlineToken.current = { profile: profile.id, token: res.token };
     updateProfile({ token: res.token, user: res.user, recovery: res.recovery });
     return res.token;
+  }
+  function confirmAccountDeletion() {
+    if (!profile?.token) return;
+    const account = profile.user?.id;
+    const id = profile.id;
+    confirmChange(
+      "Delete your Block League account?",
+      "Your account, cloud progress and its profiles on this device will be removed. Other players keep shared scores and replays under the name Deleted player. You cannot undo this.",
+      "Delete account",
+      () =>
+        run(async () => {
+          await api("account.delete", { confirm: true }, profile.token);
+          removeLocalProfile(id, account);
+          notify("Your online account was deleted.");
+        }),
+    );
+  }
+  function removeLocalProfile(id: string, account?: string) {
+    if (onlineToken.current?.profile === id) onlineToken.current = null;
+    setLocal((current) => {
+      const profiles = current.profiles.filter(
+        (p) => p.id !== id && (!account || p.user?.id !== account),
+      );
+      return {
+        ...current,
+        profiles,
+        active:
+          profiles.find((p) => p.id === current.active)?.id ||
+          profiles[0]?.id ||
+          "",
+      };
+    });
+    resetProfileViews();
   }
   async function refreshClub() {
     const token = await ensureOnline();
@@ -2456,6 +2497,12 @@ function GameApp() {
                         })
                       : "Registration is closed."}
                   </Txt>
+                  {league.status === "expired" && (
+                    <Txt muted>
+                      This season expired before all teams entered. Teams can
+                      enter another season.
+                    </Txt>
+                  )}
                   <Txt>
                     {message(
                       "Fixtures allow {count} hours from scheduling. No mid-season substitutions. Unplayed attempts score zero.",
@@ -2488,25 +2535,26 @@ function GameApp() {
                       )
                     }
                   />
-                  {league.owner === profile.user?.id && registrationOpen && (
-                    <Button
-                      title="Lock entries & start season"
-                      disabled={league.teams.length !== league.size}
-                      onPress={() =>
-                        confirmChange(
-                          "Start this season?",
-                          "Entries will close and fixtures will become available to the teams.",
-                          "Start season",
-                          () =>
-                            run(async () =>
-                              setLeague(
-                                await api("league.start", { id: league.id }),
+                  {league.owner === profile.user?.id &&
+                    league.status === "registration" && (
+                      <Button
+                        title="Lock entries & start season"
+                        disabled={league.teams.length !== league.size}
+                        onPress={() =>
+                          confirmChange(
+                            "Start this season?",
+                            "Entries will close and fixtures will become available to the teams.",
+                            "Start season",
+                            () =>
+                              run(async () =>
+                                setLeague(
+                                  await api("league.start", { id: league.id }),
+                                ),
                               ),
-                            ),
-                        )
-                      }
-                    />
-                  )}
+                          )
+                        }
+                      />
+                    )}
                 </Card>
                 {league.champion && (
                   <Card>
@@ -2835,6 +2883,19 @@ function GameApp() {
                     is a family convenience, not a secure parental identity
                     boundary.
                   </Txt>
+                  <Button
+                    secondary
+                    title="Remove profile from this device"
+                    disabled={busy}
+                    onPress={() =>
+                      confirmChange(
+                        "Remove this local profile?",
+                        "This clears the selected profile and its offline progress from this device. Any online account stays available.",
+                        "Remove local profile",
+                        () => removeLocalProfile(profile.id),
+                      )
+                    }
+                  />
                 </Card>
                 <Card>
                   <Txt size={23} bold>
@@ -2845,14 +2906,16 @@ function GameApp() {
                     recovery key private; it restores this pilot account on a
                     second device.
                   </Txt>
-                  <Input
-                    label="Game server URL"
-                    value={local.server}
-                    onChangeText={(server: string) =>
-                      setLocal((l) => ({ ...l, server }))
-                    }
-                    autoCapitalize="none"
-                  />
+                  {!storeBuild && (
+                    <Input
+                      label="Game server URL"
+                      value={local.server}
+                      onChangeText={(server: string) =>
+                        setLocal((l) => ({ ...l, server }))
+                      }
+                      autoCapitalize="none"
+                    />
+                  )}
                   <Button
                     title={
                       profile.token
@@ -2913,8 +2976,16 @@ function GameApp() {
                       })
                     }
                   />
+                  {profile.token && (
+                    <Button
+                      secondary
+                      title="Delete online account"
+                      disabled={busy}
+                      onPress={confirmAccountDeletion}
+                    />
+                  )}
                 </Card>
-                {profile.age === "7-12" && (
+                {profile.age === "7-12" && !storeBuild && (
                   <Card>
                     <Txt size={23} bold>
                       Guardian controls
@@ -3180,59 +3251,61 @@ function GameApp() {
                   colour within the chosen palette. Colours never change scoring
                   or piece generation.
                 </Txt>
-                {Object.entries(palettes).map(([key, colors]) => {
-                  const unlocked =
-                    key === "club" ||
-                    (key === "garden" && profile.stars >= 5) ||
-                    (key === "aurora" &&
-                      profile.user?.rewards?.includes("aurora"));
-                  return (
-                    <Card key={key}>
-                      <Txt size={23} bold>
-                        {key === "club"
-                          ? "Club confetti"
-                          : key === "garden"
-                            ? "Garden party"
-                            : "Aurora"}
-                      </Txt>
-                      <Row>
-                        {colors.map((c) => (
-                          <View
-                            key={c}
-                            style={{
-                              width: 32,
-                              height: 32,
-                              borderRadius: 8,
-                              backgroundColor: c,
-                            }}
-                          />
-                        ))}
-                      </Row>
-                      <Txt muted>
-                        {key === "garden"
-                          ? "Earn 5 stars. Finish a round with at least 3 placements for a star. No ad or purchase."
-                          : key === "aurora"
-                            ? "Adult-only reward-provider development preview."
-                            : "Yours from the first move."}
-                      </Txt>
-                      <Button
-                        secondary
-                        title={
-                          unlocked
-                            ? "Use palette"
+                {Object.entries(palettes)
+                  .filter(([key]) => !storeBuild || key !== "aurora")
+                  .map(([key, colors]) => {
+                    const unlocked =
+                      key === "club" ||
+                      (key === "garden" && profile.stars >= 5) ||
+                      (key === "aurora" &&
+                        profile.user?.rewards?.includes("aurora"));
+                    return (
+                      <Card key={key}>
+                        <Txt size={23} bold>
+                          {key === "club"
+                            ? "Club confetti"
                             : key === "garden"
-                              ? `${profile.stars}/5 stars`
-                              : "Locked"
-                        }
-                        disabled={!unlocked}
-                        onPress={() =>
-                          setSetting("palette", key as Settings["palette"])
-                        }
-                      />
-                    </Card>
-                  );
-                })}
-                {adEligible(profile.age) && (
+                              ? "Garden party"
+                              : "Aurora"}
+                        </Txt>
+                        <Row>
+                          {colors.map((c) => (
+                            <View
+                              key={c}
+                              style={{
+                                width: 32,
+                                height: 32,
+                                borderRadius: 8,
+                                backgroundColor: c,
+                              }}
+                            />
+                          ))}
+                        </Row>
+                        <Txt muted>
+                          {key === "garden"
+                            ? "Earn 5 stars. Finish a round with at least 3 placements for a star. No ad or purchase."
+                            : key === "aurora"
+                              ? "Adult-only reward-provider development preview."
+                              : "Yours from the first move."}
+                        </Txt>
+                        <Button
+                          secondary
+                          title={
+                            unlocked
+                              ? "Use palette"
+                              : key === "garden"
+                                ? `${profile.stars}/5 stars`
+                                : "Locked"
+                          }
+                          disabled={!unlocked}
+                          onPress={() =>
+                            setSetting("palette", key as Settings["palette"])
+                          }
+                        />
+                      </Card>
+                    );
+                  })}
+                {!storeBuild && adEligible(profile.age) && (
                   <Card>
                     <Txt bold>Optional cosmetic reward · developer test</Txt>
                     <Txt>
@@ -3285,24 +3358,26 @@ function GameApp() {
                     )}
                   </Card>
                 )}
-                <Card>
-                  <Txt bold>Automatic ads: none in this build</Txt>
-                  <Txt>
-                    Store purchases and restoration require a configured billing
-                    provider. No payment is requested.
-                  </Txt>
-                  <Button
-                    secondary
-                    title="Check purchase restoration"
-                    onPress={() =>
-                      run(async () => {
-                        const token = await ensureOnline();
-                        const r = await api("purchase.restore", {}, token);
-                        notify(r.message, "info");
-                      })
-                    }
-                  />
-                </Card>
+                {!storeBuild && (
+                  <Card>
+                    <Txt bold>Automatic ads: none in this build</Txt>
+                    <Txt>
+                      Store purchases and restoration require a configured
+                      billing provider. No payment is requested.
+                    </Txt>
+                    <Button
+                      secondary
+                      title="Check purchase restoration"
+                      onPress={() =>
+                        run(async () => {
+                          const token = await ensureOnline();
+                          const r = await api("purchase.restore", {}, token);
+                          notify(r.message, "info");
+                        })
+                      }
+                    />
+                  </Card>
+                )}
               </>
             ) : (
               <Card>

@@ -28,11 +28,14 @@ export type Profile = {
 };
 export type Local = { profiles: Profile[]; active: string; server: string };
 const KEY = "block-league-v3";
+export const storeBuild = process.env.EXPO_PUBLIC_STORE_BUILD === "1";
 export const defaultServer =
   process.env.EXPO_PUBLIC_API_URL ||
   (Platform.OS === "web" && !__DEV__ && typeof window !== "undefined"
     ? window.location.origin
-    : "http://localhost:8787");
+    : __DEV__
+      ? "http://localhost:8787"
+      : "");
 export function newProfile(alias: string, age: string): Profile {
   return {
     id: Date.now().toString(36) + Math.random().toString(36).slice(2),
@@ -50,7 +53,7 @@ export function newProfile(alias: string, age: string): Profile {
 export async function load(): Promise<Local> {
   const s = await AsyncStorage.getItem(KEY);
   return s
-    ? JSON.parse(s)
+    ? { ...JSON.parse(s), ...(storeBuild && { server: defaultServer }) }
     : {
         profiles: [],
         active: "",

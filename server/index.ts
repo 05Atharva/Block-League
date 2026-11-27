@@ -1,17 +1,75 @@
 import http from "node:http";
 import { createHash } from "node:crypto";
 import { RoomAccessError, Service } from "./service.ts";
-import { resolve, extname, sep } from "node:path";
+import { resolve, extname, isAbsolute, sep } from "node:path";
 import { existsSync, readFileSync, statSync } from "node:fs";
+import { deletionPage } from "./account-deletion.ts";
 export function startServer({
   port = Number(process.env.PORT || 8787),
   host = process.env.HOST || "127.0.0.1",
   file = process.env.DATA_FILE || "./data/block-league.json",
   championshipEnabled = process.env.ENABLE_CHAMPIONSHIP === "1",
+  production = process.env.BLOCK_LEAGUE_PRODUCTION === "1",
 } = {}) {
-  const service = new Service(file, undefined, championshipEnabled),
+  if (production && !isAbsolute(file))
+    throw Error(
+      "Set DATA_FILE to an absolute path on persistent storage before starting production.",
+    );
+  const service = new Service(file, undefined, championshipEnabled, production),
     rate = new Map<string, { count: number; until: number }>();
+  function limitRate(key: string, maximum: number, message: string) {
+    const now = Date.now();
+    const previous = rate.get(key);
+    const entry =
+      previous && previous.until > now
+        ? previous
+        : { count: 0, until: now + 60000 };
+    assert(++entry.count <= maximum, message);
+    rate.set(key, entry);
+    if (rate.size > 10000)
+      for (const [bucket, value] of rate)
+        if (value.until < now) rate.delete(bucket);
+  }
   const server = http.createServer(async (req, res) => {
+    if (/^\/account-deletion\/?$/.test(req.url?.split("?")[0] || "")) {
+      res.setHeader("Content-Type", "text/html; charset=utf-8");
+      res.setHeader("Cache-Control", "no-store");
+      res.setHeader("Referrer-Policy", "no-referrer");
+      res.setHeader("X-Content-Type-Options", "nosniff");
+      res.setHeader(
+        "Content-Security-Policy",
+        "default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'",
+      );
+      if (req.method === "GET") {
+        res.end(deletionPage());
+      } else if (req.method === "POST") {
+        try {
+          limitRate(
+            "sensitive:" + (req.socket.remoteAddress || "local"),
+            8,
+            "Too many verification attempts. Try again in a minute.",
+          );
+          assert(
+            req.headers["content-type"]?.startsWith(
+              "application/x-www-form-urlencoded",
+            ),
+            "Use the account deletion form",
+          );
+          const form = new URLSearchParams(await readBody(req, 2048));
+          assert(form.get("confirm") === "yes", "Confirm permanent deletion");
+          const account = service.userByRecovery(form.get("recovery"));
+          service.deleteAccount(account.id);
+          res.end(deletionPage("deleted"));
+        } catch {
+          res.statusCode = 400;
+          res.end(deletionPage("error"));
+        }
+      } else {
+        res.writeHead(405, { Allow: "GET, POST" });
+        res.end();
+      }
+      return;
+    }
     const origin = req.headers.origin || "";
     const allowed = process.env.ALLOWED_ORIGINS?.split(",") || [];
     if (origin && allowed.length && !allowed.includes(origin)) {
@@ -38,39 +96,23 @@ export function startServer({
     if (req.method === "POST" && req.url === "/api") {
       try {
         const key = req.socket.remoteAddress || "local";
-        const old = rate.get(key);
-        const entry =
-          old && old.until > Date.now()
-            ? old
-            : { count: 0, until: Date.now() + 60000 };
-        assert(++entry.count <= 6000, "Too many requests. Try again shortly.");
-        rate.set(key, entry);
-        let data = "";
-        for await (const part of req) {
-          data += part;
-          if (data.length > 262144) throw Error("Request too large");
-        }
-        const { action, data: body } = JSON.parse(data);
+        limitRate(key, 6000, "Too many requests. Try again shortly.");
+        const { action, data: body } = JSON.parse(await readBody(req, 262144));
         const token = (req.headers.authorization || "").replace(/^Bearer /, "");
         const userId =
           service.db.sessions[createHash("sha256").update(token).digest("hex")];
         const sensitive =
-          action === "recover" || action?.startsWith("guardian.");
+          action === "recover" ||
+          action === "account.delete" ||
+          action?.startsWith("guardian.");
         const bucket = (sensitive ? "sensitive:" : "player:") + (userId || key);
-        const existing = rate.get(bucket);
-        const limit =
-          existing && existing.until > Date.now()
-            ? existing
-            : { count: 0, until: Date.now() + 60000 };
-        rate.set(bucket, limit);
-        assert(
-          ++limit.count <= (sensitive ? 8 : 300),
+        limitRate(
+          bucket,
+          sensitive ? 8 : 300,
           sensitive
             ? "Too many verification attempts. Try again in a minute."
             : "Too many requests. Try again shortly.",
         );
-        if (rate.size > 10000)
-          for (const [k, v] of rate) if (v.until < Date.now()) rate.delete(k);
         const result = service.dispatch(action, body, token);
         res.setHeader("Content-Type", "application/json");
         res.end(JSON.stringify({ ok: true, result }));
@@ -132,6 +174,15 @@ export function startServer({
     ),
   );
   return { server, service };
+}
+async function readBody(req: http.IncomingMessage, maximum: number) {
+  let data = "";
+  req.setEncoding("utf8");
+  for await (const chunk of req) {
+    data += chunk;
+    if (data.length > maximum) throw Error("Request too large");
+  }
+  return data;
 }
 function assert(v: unknown, message: string) {
   if (!v) throw Error(message);

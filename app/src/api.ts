@@ -14,6 +14,10 @@ export async function request(
   action: string,
   data: unknown = {},
 ) {
+  if (!base.trim())
+    throw new NetworkError(
+      "Online play is unavailable until a game server is configured.",
+    );
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 10000);
   let json;

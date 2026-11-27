@@ -56,6 +56,7 @@ type User = {
   private: true;
   cloud?: { revision: number; progress: any };
   reminder?: number;
+  deleted?: true;
 };
 type Seat = { id: string; ready: boolean; game: Game; seen: number };
 type Room = {
@@ -98,6 +99,7 @@ type League = {
   owner: string;
   size: number;
   teams: string[];
+  rosters: Record<string, { captain: string; members: string[] }>;
   deadline: number;
   windowHours: number;
   status: string;
@@ -123,14 +125,17 @@ export class Service {
   path?: string;
   clock: () => number;
   private championshipEnabled: boolean;
+  private production: boolean;
   constructor(
     path?: string,
     clock = () => Date.now(),
     championshipEnabled = false,
+    production = false,
   ) {
     this.path = path;
     this.clock = clock;
     this.championshipEnabled = championshipEnabled;
+    this.production = production;
     this.db =
       path && existsSync(path)
         ? JSON.parse(readFileSync(path, "utf8"))
@@ -143,6 +148,14 @@ export class Service {
             reports: [],
             rewardEvents: {},
           };
+    // Editions saved before roster snapshots kept each entered team locked indefinitely.
+    for (const league of Object.values(this.db.leagues))
+      league.rosters ??= Object.fromEntries(
+        league.teams.map((id) => {
+          const team = this.db.teams[id];
+          return [id, { captain: team.captain, members: [...team.members] }];
+        }),
+      );
   }
   save() {
     if (this.path) {
@@ -157,11 +170,95 @@ export class Service {
   }
   me(token: string) {
     const u = this.db.users[this.db.sessions[hash(token || "")]];
-    assert(u, "Sign in again or recover your account");
+    assert(u && !u.deleted, "Sign in again or recover your account");
     return u;
+  }
+  userByRecovery(key: unknown) {
+    const candidate = typeof key === "string" ? key.trim().toLowerCase() : "";
+    assert(/^[a-f0-9]{64}$/.test(candidate), "Recovery key not recognised");
+    const digest = hash(candidate);
+    const user = Object.values(this.db.users).find(
+      (u) => !u.deleted && u.recovery === digest,
+    );
+    assert(user, "Recovery key not recognised");
+    return user!;
+  }
+  deleteAccount(uid: string) {
+    const previous = this.db;
+    this.db = structuredClone(previous);
+    try {
+      this.db.users[uid] = {
+        id: uid,
+        alias: "Deleted player",
+        age: "unknown",
+        recovery: "",
+        social: false,
+        sharing: false,
+        badges: [],
+        best: 0,
+        rewards: [],
+        private: true,
+        deleted: true,
+      };
+      for (const [session, owner] of Object.entries(this.db.sessions))
+        if (owner === uid) delete this.db.sessions[session];
+      for (const [key, offer] of Object.entries(this.db.rewardEvents))
+        if (offer.user === uid) delete this.db.rewardEvents[key];
+      this.db.reports = this.db.reports.filter((report) => report.by !== uid);
+      for (const room of Object.values(this.db.rooms)) {
+        room.reactions = room.reactions.filter(
+          (reaction) => reaction.userId !== uid,
+        );
+        const seat = room.players.find((p) => p.id === uid);
+        if (!seat || room.status === "final") continue;
+        if (room.status === "waiting") {
+          for (const player of room.players)
+            player.game = finish(player.game, "Room closed");
+          room.status = "final";
+          room.finishedAt = this.clock();
+          room.result = {
+            winner: null,
+            scores: room.players.map((p) => p.game.score),
+          };
+        } else if (!seat.game.done) {
+          seat.game = finish(seat.game, "Account deleted");
+          this.settle(room);
+        }
+      }
+      for (const team of Object.values(this.db.teams)) {
+        team.requests = team.requests.filter((id) => id !== uid);
+        team.members = team.members.filter((id) => id !== uid);
+        if (team.captain === uid && team.members.length)
+          team.captain = team.members[0];
+      }
+      for (const league of Object.values(this.db.leagues)) {
+        if (
+          league.owner !== uid ||
+          ["complete", "expired", "cancelled"].includes(league.status)
+        )
+          continue;
+        const rosters = Object.values(league.rosters);
+        const next = [
+          ...rosters.map((roster) => roster.captain),
+          ...rosters.flatMap((roster) => roster.members),
+        ].find((id) => !this.db.users[id].deleted);
+        if (next) league.owner = next;
+        else league.status = "cancelled";
+      }
+      this.tick();
+      this.save();
+      return { deleted: true };
+    } catch (error) {
+      this.db = previous;
+      throw error;
+    }
   }
   social(u: User) {
     assert(u.age !== "unknown", "Choose an age group before online play");
+    assert(
+      !this.production || u.age !== "7-12",
+      "Protected profiles play offline in this release",
+    );
     assert(
       u.age !== "7-12" || u.social,
       "A guardian must enable private social play",
@@ -186,7 +283,11 @@ export class Service {
     if (!r) throw new RoomAccessError("Room not found or code expired");
     if (!r.players.some((p) => p.id === u.id))
       throw new RoomAccessError("This room is private");
-    if (r.status !== "final" && u.age === "7-12" && !u.social)
+    if (
+      r.status !== "final" &&
+      u.age === "7-12" &&
+      (this.production || !u.social)
+    )
       throw new RoomAccessError("A guardian must enable private social play");
     return r;
   }
@@ -219,6 +320,7 @@ export class Service {
       };
       for (const p of r.players) {
         const u = this.db.users[p.id];
+        if (u.deleted) continue;
         u.best = Math.max(u.best, p.game.score);
         u.badges = [...new Set([...u.badges, ...badgeIds(p.game, true)])];
       }
@@ -229,9 +331,8 @@ export class Service {
     for (const r of Object.values(this.db.rooms)) {
       if (r.status === "final") continue;
       if (r.deadline <= now) {
-        r.players.forEach(
-          (p) => (p.game = finish(p.game, "Match window ended")),
-        );
+        for (const p of r.players)
+          if (!p.game.done) p.game = finish(p.game, "Match window ended");
         if (r.players.length === 2) this.settle(r);
         else {
           r.status = "final";
@@ -248,8 +349,24 @@ export class Service {
         this.settle(r);
       }
     }
-    for (const l of Object.values(this.db.leagues))
+    const lockedTeams = new Set<string>();
+    for (const l of Object.values(this.db.leagues)) {
       if (l.status === "playing" || l.status === "deciding") this.advance(l);
+      if (
+        l.status === "registration" &&
+        l.deadline <= now &&
+        l.teams.length < l.size
+      )
+        l.status = "expired";
+      if (
+        l.status !== "complete" &&
+        l.status !== "expired" &&
+        l.status !== "cancelled"
+      )
+        for (const team of l.teams) lockedTeams.add(team);
+    }
+    for (const team of Object.values(this.db.teams))
+      team.locked = lockedTeams.has(team.id);
   }
   snapshot(u: User, r: Room) {
     const own = r.players.find((p) => p.id === u.id)!;
@@ -312,20 +429,26 @@ export class Service {
       reactions: [],
     };
     this.db.rooms[c] = r;
+    if (kind === "fixture") {
+      for (const seat of r.players)
+        if (this.db.users[seat.id].deleted)
+          seat.game = finish(seat.game, "Account deleted");
+      this.settle(r);
+    }
     return r;
   }
   fixture(l: League, a: string, b: string, phase: string) {
-    const ta = this.db.teams[a],
-      tb = this.db.teams[b];
+    const ta = l.rosters[a],
+      tb = l.rosters[b];
     const start = this.clock();
     const f: Fixture = { id: id(), a, b, phase, rooms: [] };
     const players =
       phase === "decider" || phase.startsWith("qualification-decider") ? 1 : 3;
     for (let i = 0; i < players; i++) {
       const r = this.makeRoom(
-        ta.members[i],
+        players === 1 ? this.deciderSeat(ta) : ta.members[i],
         "fixture",
-        tb.members[i],
+        players === 1 ? this.deciderSeat(tb) : tb.members[i],
         start + l.windowHours * 3600000,
         start,
       );
@@ -334,6 +457,13 @@ export class Service {
     }
     l.fixtures.push(f);
     return f;
+  }
+  deciderSeat(roster: League["rosters"][string]) {
+    return (
+      [roster.captain, ...roster.members].find(
+        (uid) => !this.db.users[uid].deleted,
+      ) ?? roster.captain
+    );
   }
   advance(l: League) {
     for (const f of l.fixtures) {
@@ -351,10 +481,19 @@ export class Service {
       f.points = pts;
       if (pts[0] === pts[1] && f.phase !== "round-robin") {
         // A tied knockout gets another captain duel, under a fresh seed.
+        const captainA = this.deciderSeat(l.rosters[f.a]);
+        const captainB = this.deciderSeat(l.rosters[f.b]);
+        if (
+          this.db.users[captainA].deleted &&
+          this.db.users[captainB].deleted
+        ) {
+          l.status = "cancelled";
+          return;
+        }
         const r = this.makeRoom(
-          this.db.teams[f.a].captain,
+          captainA,
           "fixture",
-          this.db.teams[f.b].captain,
+          captainB,
           this.clock() + l.windowHours * 3600000,
         );
         r.fixture = f.id;
@@ -402,13 +541,15 @@ export class Service {
     if (final?.winner) {
       l.status = "complete";
       l.champion = final.winner;
-      for (const uid of this.db.teams[final.winner].members) {
+      for (const uid of l.rosters[final.winner].members) {
         const u = this.db.users[uid];
+        if (u.deleted) continue;
         u.badges = [...new Set([...u.badges, "league-champion"])];
       }
     }
     for (const t of l.teams)
-      for (const uid of this.db.teams[t].members) {
+      for (const uid of l.rosters[t].members) {
+        if (this.db.users[uid].deleted) continue;
         const assigned = rr
           .flatMap((f) => f.rooms)
           .map((c) => this.db.rooms[c])
@@ -458,12 +599,14 @@ export class Service {
   }
   leagueView(u: User, l: League) {
     assert(
-      l.owner === u.id ||
-        l.teams.some((t) => this.db.teams[t].members.includes(u.id)),
+      l &&
+        (l.owner === u.id ||
+          l.teams.some((t) => l.rosters[t].members.includes(u.id))),
       "This league is private",
     );
+    const { rosters, ...season } = l;
     return {
-      ...l,
+      ...season,
       teamNames: Object.fromEntries(
         l.teams.map((t) => [t, this.db.teams[t].name]),
       ),
@@ -478,6 +621,10 @@ export class Service {
     let out: any;
     if (action === "register") {
       assert(ages.includes(d.age), "Choose an age group");
+      assert(
+        !this.production || d.age !== "7-12",
+        "Protected profiles play offline in this release",
+      );
       assert(clean(d.alias).length >= 2, "Use an alias of 2–24 characters");
       const uid = id(),
         recovery = id() + id(),
@@ -498,19 +645,19 @@ export class Service {
       this.db.sessions[hash(session)] = uid;
       out = { token: session, recovery, user: this.publicUser(u) };
     } else if (action === "recover") {
-      const u = Object.values(this.db.users).find(
-        (u) => u.recovery === hash(String(d.recovery || "")),
-      );
-      assert(u, "Recovery key not recognised");
+      const u = this.userByRecovery(d.recovery);
       const session = id() + id();
-      this.db.sessions[hash(session)] = u!.id;
-      out = { token: session, user: this.publicUser(u!) };
+      this.db.sessions[hash(session)] = u.id;
+      out = { token: session, user: this.publicUser(u) };
     } else {
       const u = this.me(token);
       switch (action) {
         case "me":
           out = this.publicUser(u);
           break;
+        case "account.delete":
+          assert(d.confirm === true, "Confirm permanent deletion");
+          return this.deleteAccount(u.id);
         case "progress.sync":
           {
             assert(
@@ -797,7 +944,10 @@ export class Service {
             const t = Object.values(this.db.teams).find(
               (t) => t.code === String(d.code).toUpperCase(),
             );
-            assert(t && !t.locked, "Team code invalid or roster locked");
+            assert(
+              t && t.members.length && !t.locked,
+              "Team code invalid or roster locked",
+            );
             if (!t!.members.includes(u.id) && !t!.requests.includes(u.id))
               t!.requests.push(u.id);
             out = {
@@ -868,6 +1018,7 @@ export class Service {
               owner: u.id,
               size: d.size,
               teams: [],
+              rosters: {},
               deadline: this.clock() + 7 * 86400000,
               windowHours: Math.min(
                 168,
@@ -901,13 +1052,12 @@ export class Service {
             );
             assert(
               !l!.teams.some((tid) =>
-                this.db.teams[tid].members.some((uid) =>
-                  t.members.includes(uid),
-                ),
+                l!.rosters[tid].members.some((uid) => t.members.includes(uid)),
               ),
               "A player may only represent one team per league",
             );
             l!.teams.push(t.id);
+            l!.rosters[t.id] = { captain: t.captain, members: [...t.members] };
             t.locked = true;
             out = this.leagueView(u, l!);
           }
@@ -917,7 +1067,7 @@ export class Service {
             const l = this.db.leagues[d.id];
             assert(
               l && l.owner === u.id && l.status === "registration",
-              "Only the organiser can start registration",
+              "The organiser can only start a season awaiting its first fixture",
             );
             assert(l.teams.length === l.size, "Fill all team slots first");
             l.status = "playing";
@@ -934,7 +1084,7 @@ export class Service {
             .filter(
               (l) =>
                 l.owner === u.id ||
-                l.teams.some((t) => this.db.teams[t].members.includes(u.id)),
+                l.teams.some((t) => l.rosters[t].members.includes(u.id)),
             )
             .map((l) => this.leagueView(u, l));
           break;
@@ -1028,6 +1178,7 @@ export class Service {
           }
           break;
         case "reward.offer":
+          assert(!this.production, "Cosmetic test offers are unavailable");
           assert(
             adEligible(u.age),
             "Ad offers are for eligible adult profiles only",
@@ -1046,7 +1197,7 @@ export class Service {
           break;
         case "reward.complete":
           assert(
-            process.env.ALLOW_TEST_REWARDS === "1",
+            !this.production && process.env.ALLOW_TEST_REWARDS === "1",
             "Live reward verification is not configured",
           );
           {

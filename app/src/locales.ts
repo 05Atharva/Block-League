@@ -1,5 +1,39 @@
 /** Reviewed-by-code translations for core menus and learning. Native-speaker QA is still required. */
 const words: Record<string, [string, string]> = {
+  "Delete online account": ["ऑनलाइन खाता हटाएँ", "ऑनलाइन खाते हटवा"],
+  "Delete your Block League account?": [
+    "अपना Block League खाता हटाएँ?",
+    "तुमचे Block League खाते हटवायचे?",
+  ],
+  "Delete account": ["खाता हटाएँ", "खाते हटवा"],
+  "Your online account was deleted.": [
+    "आपका ऑनलाइन खाता हटा दिया गया।",
+    "तुमचे ऑनलाइन खाते हटवले.",
+  ],
+  "Remove profile from this device": [
+    "इस डिवाइस से प्रोफ़ाइल हटाएँ",
+    "या डिव्हाइसवरून प्रोफाइल काढा",
+  ],
+  "Remove this local profile?": [
+    "यह स्थानीय प्रोफ़ाइल हटाएँ?",
+    "हे स्थानिक प्रोफाइल काढायचे?",
+  ],
+  "Remove local profile": ["स्थानीय प्रोफ़ाइल हटाएँ", "स्थानिक प्रोफाइल काढा"],
+  "Your account, cloud progress and its profiles on this device will be removed. Other players keep shared scores and replays under the name Deleted player. You cannot undo this.":
+    [
+      "आपका खाता, क्लाउड प्रगति और इस डिवाइस पर उससे जुड़ी प्रोफ़ाइल हट जाएँगी। अन्य खिलाड़ियों के साझा स्कोर और रीप्ले में आपका नाम हटाया गया खिलाड़ी होगा। यह कार्रवाई वापस नहीं ली जा सकती।",
+      "तुमचे खाते, क्लाउडमधील प्रगती आणि या डिव्हाइसवरील संबंधित प्रोफाइल हटवली जातील. इतर खेळाडूंच्या सामायिक गुणांमध्ये व रिप्लेमध्ये तुमचे नाव हटवलेला खेळाडू असे दिसेल. ही कृती पूर्ववत करता येणार नाही.",
+    ],
+  "This clears the selected profile and its offline progress from this device. Any online account stays available.":
+    [
+      "इस डिवाइस से चुनी हुई प्रोफ़ाइल और उसकी ऑफ़लाइन प्रगति हट जाएगी। ऑनलाइन खाता उपलब्ध रहेगा।",
+      "निवडलेले प्रोफाइल आणि त्याची ऑफलाइन प्रगती या डिव्हाइसवरून हटेल. ऑनलाइन खाते उपलब्ध राहील.",
+    ],
+  "This season expired before all teams entered. Teams can enter another season.":
+    [
+      "सभी टीमों के जुड़ने से पहले इस सीज़न की समय-सीमा समाप्त हो गई। टीमें दूसरे सीज़न में शामिल हो सकती हैं।",
+      "सर्व संघ सामील होण्यापूर्वी या हंगामाची मुदत संपली. संघ दुसऱ्या हंगामात सामील होऊ शकतात.",
+    ],
   "Copy private invite link": [
     "निजी निमंत्रण लिंक कॉपी करें",
     "खाजगी निमंत्रणाची लिंक कॉपी करा",

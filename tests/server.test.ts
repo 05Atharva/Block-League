@@ -270,6 +270,25 @@ test("expired room rejects joining; host can remove an unstarted seat", () => {
     /expired/,
   );
 });
+test("production disables protected signups and simulated reward offers", () => {
+  const s = new Service(undefined, undefined, false, true);
+  assert.throws(
+    () => s.dispatch("register", { alias: "Protected profile", age: "7-12" }),
+    /play offline/,
+  );
+  const adult = s.dispatch("register", {
+    alias: "Production player",
+    age: "25-44",
+  });
+  assert.throws(
+    () => s.dispatch("reward.offer", {}, adult.token),
+    /unavailable/,
+  );
+  assert.equal(
+    s.dispatch("room.create", { kind: "live" }, adult.token).status,
+    "waiting",
+  );
+});
 test("protected children and unknown age have no ad access; guardian gates social", () => {
   const { s } = setup();
   const kid = s.dispatch("register", { alias: "Child", age: "7-12" });

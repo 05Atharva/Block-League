@@ -372,25 +372,33 @@ try {
   const [sx, sy] = midpoint(piece),
     [tx, ty] = midpoint(cell);
   const pointer = (x, y) => [{ x, y, id: 1, radiusX: 4, radiusY: 4 }];
-  await session.send("Input.dispatchTouchEvent", {
-    type: "touchStart",
-    touchPoints: pointer(sx, sy),
+  const touchEvent = (type, touchPoints = []) =>
+    session.send("Input.dispatchTouchEvent", { type, touchPoints });
+  const fitPreview = board.getByText("✓ Fits at row 1, column 1", {
+    exact: true,
   });
-  for (let step = 1; step <= 12; step++) {
-    await session.send("Input.dispatchTouchEvent", {
-      type: "touchMove",
-      touchPoints: pointer(
-        sx + ((tx - sx) * step) / 12,
-        sy + ((ty - sy) * step) / 12,
-      ),
-    });
-    await board.waitForTimeout(16);
+  async function dragToFirstCell() {
+    await touchEvent("touchStart", pointer(sx, sy));
+    for (let step = 1; step <= 12; step++) {
+      await touchEvent(
+        "touchMove",
+        pointer(sx + ((tx - sx) * step) / 12, sy + ((ty - sy) * step) / 12),
+      );
+      await board.waitForTimeout(16);
+    }
+    await fitPreview.waitFor();
   }
-  await session.send("Input.dispatchTouchEvent", {
-    type: "touchEnd",
-    touchPoints: [],
-  });
-  await board.getByText("✓ Fits at row 1, column 1", { exact: true }).waitFor();
+  for (const outcome of ["outside", "cancel"]) {
+    await dragToFirstCell();
+    if (outcome === "outside") await touchEvent("touchMove", pointer(3, ty));
+    await touchEvent(outcome === "cancel" ? "touchCancel" : "touchEnd");
+    await fitPreview.waitFor({ state: "hidden" });
+    assert.equal(await board.getByTestId("confirm-place").isDisabled(), true);
+    await board.getByText("0 placed", { exact: true }).waitFor();
+  }
+  await dragToFirstCell();
+  await touchEvent("touchEnd");
+  await fitPreview.waitFor();
   await board.getByText("0 placed", { exact: true }).waitFor();
   if (captures)
     await board.screenshot({ path: join(captures, "retest-touch-drag.png") });
@@ -418,7 +426,7 @@ try {
       path: join(captures, "retest-marathi-board.png"),
     });
   console.log(
-    "PASS Touch drag previews only, and Marathi counters and placement cues are localized",
+    "PASS Valid touch drag previews only, cancellation and outside drops clear it, and Marathi gameplay cues are localized",
   );
   await touch.close();
 } finally {

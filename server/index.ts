@@ -1,15 +1,17 @@
 import http from "node:http";
 import { createHash } from "node:crypto";
-import { RoomAccessError, Service } from "./service.ts";
+import { PersistenceUnavailable, RoomAccessError, Service } from "./service.ts";
 import { resolve, extname, isAbsolute, sep } from "node:path";
 import { existsSync, readFileSync, statSync } from "node:fs";
 import { deletionPage } from "./account-deletion.ts";
+import { privacyOperator, privacyPolicyPage } from "./privacy-policy.ts";
 export function startServer({
   port = Number(process.env.PORT || 8787),
   host = process.env.HOST || "127.0.0.1",
   file = process.env.DATA_FILE || "./data/block-league.json",
   championshipEnabled = process.env.ENABLE_CHAMPIONSHIP === "1",
   production = process.env.BLOCK_LEAGUE_PRODUCTION === "1",
+  policyOperator = privacyOperator(process.env) ?? null,
 } = {}) {
   if (production && !isAbsolute(file))
     throw Error(
@@ -31,6 +33,32 @@ export function startServer({
         if (value.until < now) rate.delete(bucket);
   }
   const server = http.createServer(async (req, res) => {
+    if (/^\/privacy-policy\/?$/.test(req.url?.split("?")[0] || "")) {
+      if (req.method !== "GET" && req.method !== "HEAD") {
+        res.writeHead(405, { Allow: "GET, HEAD" });
+        res.end();
+        return;
+      }
+      res.setHeader("Cache-Control", "no-store");
+      res.setHeader("Referrer-Policy", "no-referrer");
+      res.setHeader("X-Content-Type-Options", "nosniff");
+      if (production && !policyOperator) {
+        res.writeHead(503, { "Content-Type": "text/plain; charset=utf-8" });
+        res.end("Block League’s privacy policy is temporarily unavailable.");
+        return;
+      }
+      res.setHeader("Content-Type", "text/html; charset=utf-8");
+      res.setHeader(
+        "Content-Security-Policy",
+        "default-src 'none'; style-src 'unsafe-inline'; frame-ancestors 'none'; base-uri 'none'",
+      );
+      res.end(
+        req.method === "HEAD"
+          ? undefined
+          : privacyPolicyPage(policyOperator ?? undefined),
+      );
+      return;
+    }
     if (/^\/account-deletion\/?$/.test(req.url?.split("?")[0] || "")) {
       res.setHeader("Content-Type", "text/html; charset=utf-8");
       res.setHeader("Cache-Control", "no-store");
@@ -117,12 +145,16 @@ export function startServer({
         res.setHeader("Content-Type", "application/json");
         res.end(JSON.stringify({ ok: true, result }));
       } catch (e) {
-        res.writeHead(400, { "Content-Type": "application/json" });
+        const storageUnavailable = e instanceof PersistenceUnavailable;
+        res.writeHead(storageUnavailable ? 503 : 400, {
+          "Content-Type": "application/json",
+        });
         res.end(
           JSON.stringify({
             ok: false,
             error: e instanceof Error ? e.message : "Request failed",
             ...(e instanceof RoomAccessError && { code: "ROOM_UNAVAILABLE" }),
+            ...(storageUnavailable && { code: "PERSISTENCE_UNAVAILABLE" }),
           }),
         );
       }

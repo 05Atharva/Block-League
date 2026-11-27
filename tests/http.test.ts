@@ -1,11 +1,119 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { startServer } from "../server/index.ts";
-import { mkdtempSync, rmSync } from "node:fs";
+import { privacyOperator } from "../server/privacy-policy.ts";
+import { mkdirSync, mkdtempSync, rmdirSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { once } from "node:events";
 import { legalMoves, replay } from "../shared/engine.ts";
+test("Play policy route is accessible without sign-in and requires real release metadata", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "bl-policy-"));
+  const config = {
+    BLOCK_LEAGUE_PRIVACY_PUBLISHER: "Fixture Operator <QA>",
+    BLOCK_LEAGUE_PRIVACY_EMAIL: "privacy@example.invalid",
+    BLOCK_LEAGUE_BACKUP_RETENTION_DAYS: "30",
+    BLOCK_LEAGUE_ACCESS_LOG_RETENTION_DAYS: "7",
+  };
+  assert.equal(
+    privacyOperator({ ...config, BLOCK_LEAGUE_ACCESS_LOG_RETENTION_DAYS: "" }),
+    undefined,
+  );
+  const operator = privacyOperator(config);
+  assert.ok(operator);
+  for (const policyOperator of [operator, undefined]) {
+    const { server } = startServer({
+      port: 0,
+      file: join(dir, "data.json"),
+      production: true,
+      policyOperator: policyOperator ?? null,
+    });
+    await once(server, "listening");
+    const base =
+      "http://127.0.0.1:" + (server.address() as { port: number }).port;
+    try {
+      const response = await fetch(base + "/privacy-policy");
+      if (!policyOperator) {
+        assert.equal(response.status, 503);
+        continue;
+      }
+      assert.equal(response.status, 200);
+      assert.match(response.headers.get("content-type") || "", /text\/html/);
+      const html = await response.text();
+      assert.match(html, /Fixture Operator &lt;QA&gt;/);
+      assert.match(html, /mailto:privacy@example.invalid/);
+      assert.match(html, /href="\/account-deletion"/);
+      assert.match(html, /30 days/);
+      assert.match(html, /7 days/);
+      const deletion = await fetch(base + "/account-deletion");
+      assert.match(await deletion.text(), /href="\/privacy-policy"/);
+    } finally {
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+    }
+  }
+  rmSync(dir, { recursive: true });
+});
+
+test("a move refused by persistence stays absent on the next read and after restart", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "bl-refused-"));
+  const file = join(dir, "data.json");
+  let instance = startServer({ port: 0, file });
+  const call = async (action: string, data: unknown, token: string) => {
+    const { port } = instance.server.address() as { port: number };
+    const response = await fetch("http://127.0.0.1:" + port + "/api", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: "Bearer " + token,
+      },
+      body: JSON.stringify({ action, data }),
+    });
+    return response.json();
+  };
+  const close = () =>
+    new Promise<void>((resolve) => instance.server.close(() => resolve()));
+  try {
+    await once(instance.server, "listening");
+    const d = instance.service.dispatch.bind(instance.service);
+    const owner = d("register", { alias: "Disk owner", age: "25-44" });
+    const guest = d("register", { alias: "Disk guest", age: "25-44" });
+    const room = d("room.create", { kind: "live" }, owner.token);
+    const seat = { code: room.code };
+    d("room.join", seat, guest.token);
+    d("room.ready", seat, owner.token);
+    d("room.ready", seat, guest.token);
+    const move = {
+      ...legalMoves(room.game)[0],
+      seq: 0,
+      id: "failed-disk-move",
+    };
+    mkdirSync(file + ".tmp");
+    assert.equal(
+      (await call("room.move", { ...seat, move }, owner.token)).ok,
+      false,
+    );
+    rmdirSync(file + ".tmp");
+    assert.deepEqual(
+      (await call("room.get", seat, owner.token)).result.game.moves,
+      [],
+    );
+    await close();
+    instance = startServer({ port: 0, file });
+    await once(instance.server, "listening");
+    assert.deepEqual(
+      (await call("room.get", seat, owner.token)).result.game.moves,
+      [],
+    );
+    assert.equal(
+      (await call("room.move", { ...seat, move }, owner.token)).result.game
+        .moves.length,
+      1,
+    );
+  } finally {
+    await close();
+    rmSync(dir, { recursive: true });
+  }
+});
 test("HTTP transport: two independent clients play, reconnect and see the same final result", async () => {
   const dir = mkdtempSync(join(tmpdir(), "bl-http-"));
   const { server } = startServer({ port: 0, file: join(dir, "data.json") });

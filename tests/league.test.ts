@@ -104,6 +104,57 @@ test("guardian-approved family member can enter an invited league fixture, and r
     /guardian/,
   );
 });
+test("new league entries require current guardian approval for the captain and their roster", () => {
+  const s = new Service();
+  const adult = s.dispatch("register", {
+    alias: "Club organiser",
+    age: "25-44",
+  });
+  const child = s.dispatch("register", {
+    alias: "Protected member",
+    age: "7-12",
+  });
+  const third = s.dispatch("register", { alias: "Third player", age: "25-44" });
+  const pin = "612358";
+  s.dispatch("guardian.setup", { pin }, child.token);
+  s.dispatch("guardian.update", { pin, social: true }, child.token);
+  const season = s.dispatch(
+    "league.create",
+    { name: "Private season", size: 4 },
+    adult.token,
+  );
+  for (const [captain, member] of [
+    [child, adult],
+    [adult, child],
+  ]) {
+    const team = s.dispatch(
+      "team.create",
+      { name: "Private team" },
+      captain.token,
+    );
+    for (const player of [member, third]) {
+      s.dispatch("team.request", { code: team.code }, player.token);
+      s.dispatch(
+        "team.approve",
+        { id: team.id, member: player.user.id },
+        captain.token,
+      );
+    }
+    s.dispatch("guardian.update", { pin, social: false }, child.token);
+    assert.throws(
+      () =>
+        s.dispatch(
+          "league.enter",
+          { code: season.code, team: team.id },
+          captain.token,
+        ),
+      /guardian/i,
+    );
+    assert.equal(s.db.teams[team.id].locked, false);
+    assert.deepEqual(s.db.leagues[season.id].teams, []);
+    s.dispatch("guardian.update", { pin, social: true }, child.token);
+  }
+});
 test("an underfilled season expires and releases its roster, while the archived roster stays private", () => {
   let now = Date.now();
   const s = new Service(undefined, () => now);

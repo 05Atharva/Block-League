@@ -26,6 +26,20 @@ module.exports = ({ config }) => {
         );
       }
     }
+    return {
+      ...config,
+      android: {
+        ...config.android,
+        blockedPermissions: [
+          ...new Set([
+            ...(config.android?.blockedPermissions ?? []),
+            "android.permission.SYSTEM_ALERT_WINDOW",
+            "android.permission.READ_EXTERNAL_STORAGE",
+            "android.permission.WRITE_EXTERNAL_STORAGE",
+          ]),
+        ],
+      },
+    };
   }
   return config;
 };

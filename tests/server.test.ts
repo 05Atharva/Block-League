@@ -243,6 +243,25 @@ test("60 second reconnect grace restores state, late reconnect closes own attemp
     true,
   );
 });
+test("a delayed Finish preserves reconnect expiry in the official replay", () => {
+  const { s, a, b, advance } = setup();
+  const { code } = match(s, a, b);
+  advance(50000);
+  s.dispatch("room.get", { code }, b.token);
+  advance(10001);
+  const before = s.dispatch("room.get", { code }, a.token);
+  assert.equal(before.game.reason, "Reconnect grace expired");
+  assert.equal(
+    s.dispatch("room.finish", { code }, a.token).game.reason,
+    before.game.reason,
+  );
+  const final = s.dispatch("room.finish", { code }, b.token);
+  assert.equal(final.replays[0].game.reason, before.game.reason);
+  assert.deepEqual(
+    s.dispatch("room.finish", { code }, a.token).result,
+    final.result,
+  );
+});
 test("live deadline and async deadline enforced, ties are draws", () => {
   const { s, a, b, advance } = setup();
   const r = match(s, a, b, "async");

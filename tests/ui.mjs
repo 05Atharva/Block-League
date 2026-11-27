@@ -62,6 +62,19 @@ try {
     await p.getByRole("button", { name: "Let’s play", exact: true }).click();
     await p.getByTestId("play-solo").waitFor();
   }
+  async function openPolicy(p) {
+    const popup = p.waitForEvent("popup");
+    await p.getByRole("link", { name: "Privacy policy", exact: true }).click();
+    const policy = await popup;
+    await policy
+      .getByRole("heading", { name: "Privacy policy", exact: true })
+      .waitFor();
+    assert.equal(new URL(policy.url()).pathname, "/privacy-policy");
+    await policy.getByRole("link", { name: "account deletion page" }).waitFor();
+    await policy.close();
+  }
+  await page.goto(base);
+  await openPolicy(page);
   await profile(page, "UI Player");
   ok("Profile creation and one-tap Play");
   await page.screenshot({ path: join(temp, "home.png"), fullPage: true });
@@ -104,6 +117,10 @@ try {
   await page
     .getByRole("button", { name: "Profile and settings", exact: true })
     .click();
+  await openPolicy(page);
+  ok(
+    "Privacy policy opens from onboarding and profile and links to account deletion",
+  );
   await page
     .getByRole("button", { name: "Accessibility & appearance", exact: true })
     .click();

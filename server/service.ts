@@ -17,6 +17,7 @@ import {
   place,
   finish,
   badgeIds,
+  validMoveId,
   RULES,
 } from "../shared/engine.ts";
 import type { Game, Move } from "../shared/engine.ts";
@@ -41,6 +42,11 @@ const clean = (s: unknown, max = 24) =>
     .slice(0, max);
 const ages = ["7-12", "13-17", "18-24", "25-44", "45-65", "65+", "unknown"];
 export class RoomAccessError extends Error {}
+export class PersistenceUnavailable extends Error {
+  constructor(cause: unknown) {
+    super("The game server could not save the change. Try again.", { cause });
+  }
+}
 type User = {
   id: string;
   alias: string;
@@ -159,9 +165,26 @@ export class Service {
   }
   save() {
     if (this.path) {
-      mkdirSync(dirname(this.path), { recursive: true });
-      writeFileSync(this.path + ".tmp", JSON.stringify(this.db));
-      renameSync(this.path + ".tmp", this.path);
+      try {
+        mkdirSync(dirname(this.path), { recursive: true });
+        writeFileSync(this.path + ".tmp", JSON.stringify(this.db));
+        renameSync(this.path + ".tmp", this.path);
+      } catch (error) {
+        throw new PersistenceUnavailable(error);
+      }
+    }
+  }
+  private transact<T>(operation: () => T): T {
+    if (!this.path) return operation();
+    const previous = this.db;
+    this.db = structuredClone(previous);
+    try {
+      const result = operation();
+      this.save();
+      return result;
+    } catch (error) {
+      this.db = previous;
+      throw error;
     }
   }
   publicUser(u: User) {
@@ -184,74 +207,69 @@ export class Service {
     return user!;
   }
   deleteAccount(uid: string) {
-    const previous = this.db;
-    this.db = structuredClone(previous);
-    try {
-      this.db.users[uid] = {
-        id: uid,
-        alias: "Deleted player",
-        age: "unknown",
-        recovery: "",
-        social: false,
-        sharing: false,
-        badges: [],
-        best: 0,
-        rewards: [],
-        private: true,
-        deleted: true,
-      };
-      for (const [session, owner] of Object.entries(this.db.sessions))
-        if (owner === uid) delete this.db.sessions[session];
-      for (const [key, offer] of Object.entries(this.db.rewardEvents))
-        if (offer.user === uid) delete this.db.rewardEvents[key];
-      this.db.reports = this.db.reports.filter((report) => report.by !== uid);
-      for (const room of Object.values(this.db.rooms)) {
-        room.reactions = room.reactions.filter(
-          (reaction) => reaction.userId !== uid,
-        );
-        const seat = room.players.find((p) => p.id === uid);
-        if (!seat || room.status === "final") continue;
-        if (room.status === "waiting") {
-          for (const player of room.players)
-            player.game = finish(player.game, "Room closed");
-          room.status = "final";
-          room.finishedAt = this.clock();
-          room.result = {
-            winner: null,
-            scores: room.players.map((p) => p.game.score),
-          };
-        } else if (!seat.game.done) {
-          seat.game = finish(seat.game, "Account deleted");
-          this.settle(room);
-        }
+    return this.transact(() => this.removeAccount(uid));
+  }
+  private removeAccount(uid: string) {
+    this.db.users[uid] = {
+      id: uid,
+      alias: "Deleted player",
+      age: "unknown",
+      recovery: "",
+      social: false,
+      sharing: false,
+      badges: [],
+      best: 0,
+      rewards: [],
+      private: true,
+      deleted: true,
+    };
+    for (const [session, owner] of Object.entries(this.db.sessions))
+      if (owner === uid) delete this.db.sessions[session];
+    for (const [key, offer] of Object.entries(this.db.rewardEvents))
+      if (offer.user === uid) delete this.db.rewardEvents[key];
+    this.db.reports = this.db.reports.filter((report) => report.by !== uid);
+    for (const room of Object.values(this.db.rooms)) {
+      room.reactions = room.reactions.filter(
+        (reaction) => reaction.userId !== uid,
+      );
+      const seat = room.players.find((p) => p.id === uid);
+      if (!seat || room.status === "final") continue;
+      if (room.status === "waiting") {
+        for (const player of room.players)
+          player.game = finish(player.game, "Room closed");
+        room.status = "final";
+        room.finishedAt = this.clock();
+        room.result = {
+          winner: null,
+          scores: room.players.map((p) => p.game.score),
+        };
+      } else if (!seat.game.done) {
+        seat.game = finish(seat.game, "Account deleted");
+        this.settle(room);
       }
-      for (const team of Object.values(this.db.teams)) {
-        team.requests = team.requests.filter((id) => id !== uid);
-        team.members = team.members.filter((id) => id !== uid);
-        if (team.captain === uid && team.members.length)
-          team.captain = team.members[0];
-      }
-      for (const league of Object.values(this.db.leagues)) {
-        if (
-          league.owner !== uid ||
-          ["complete", "expired", "cancelled"].includes(league.status)
-        )
-          continue;
-        const rosters = Object.values(league.rosters);
-        const next = [
-          ...rosters.map((roster) => roster.captain),
-          ...rosters.flatMap((roster) => roster.members),
-        ].find((id) => !this.db.users[id].deleted);
-        if (next) league.owner = next;
-        else league.status = "cancelled";
-      }
-      this.tick();
-      this.save();
-      return { deleted: true };
-    } catch (error) {
-      this.db = previous;
-      throw error;
     }
+    for (const team of Object.values(this.db.teams)) {
+      team.requests = team.requests.filter((id) => id !== uid);
+      team.members = team.members.filter((id) => id !== uid);
+      if (team.captain === uid && team.members.length)
+        team.captain = team.members[0];
+    }
+    for (const league of Object.values(this.db.leagues)) {
+      if (
+        league.owner !== uid ||
+        ["complete", "expired", "cancelled"].includes(league.status)
+      )
+        continue;
+      const rosters = Object.values(league.rosters);
+      const next = [
+        ...rosters.map((roster) => roster.captain),
+        ...rosters.flatMap((roster) => roster.members),
+      ].find((id) => !this.db.users[id].deleted);
+      if (next) league.owner = next;
+      else league.status = "cancelled";
+    }
+    this.tick();
+    return { deleted: true };
   }
   social(u: User) {
     assert(u.age !== "unknown", "Choose an age group before online play");
@@ -617,6 +635,9 @@ export class Service {
     };
   }
   dispatch(action: string, d: any = {}, token = ""): any {
+    return this.transact(() => this.dispatchAction(action, d, token));
+  }
+  private dispatchAction(action: string, d: any, token: string) {
     this.tick();
     let out: any;
     if (action === "register") {
@@ -657,7 +678,7 @@ export class Service {
           break;
         case "account.delete":
           assert(d.confirm === true, "Confirm permanent deletion");
-          return this.deleteAccount(u.id);
+          return this.removeAccount(u.id);
         case "progress.sync":
           {
             assert(
@@ -795,6 +816,7 @@ export class Service {
         case "room.move": {
           const r = this.room(u, d.code),
             p = r.players.find((p) => p.id === u.id)!;
+          assert(validMoveId(d.move?.id), "Move identifier required");
           const old = p.game.moves.find((m) => m.id === d.move?.id);
           if (old) {
             assert(
@@ -824,10 +846,12 @@ export class Service {
         case "room.finish":
           {
             const r = this.room(u, d.code);
-            assert(r.status === "playing", "Match is not playing");
             const p = r.players.find((p) => p.id === u.id)!;
-            p.game = finish(p.game);
-            this.settle(r);
+            if (!p.game.done) {
+              assert(r.status === "playing", "Match is not playing");
+              p.game = finish(p.game);
+              this.settle(r);
+            }
             out = this.snapshot(u, r);
           }
           break;
@@ -851,6 +875,7 @@ export class Service {
             this.clock() < r.deadline;
           for (const move of d.moves as Move[]) {
             assert(move && typeof move === "object", "Invalid offline move");
+            assert(validMoveId(move.id), "Move identifier required");
             const previous = game.moves.find((entry) => entry.id === move.id);
             if (previous) {
               assert(
@@ -957,6 +982,7 @@ export class Service {
           break;
         case "team.approve":
           {
+            this.social(u);
             const t = this.db.teams[d.id];
             assert(
               t && t.captain === u.id && !t.locked,
@@ -966,6 +992,7 @@ export class Service {
               t.requests.includes(d.member) && t.members.length < 3,
               "Request missing or roster full",
             );
+            this.social(this.db.users[d.member]);
             t.requests = t.requests.filter((x) => x !== d.member);
             t.members.push(d.member);
             out = t;
@@ -1033,6 +1060,7 @@ export class Service {
           break;
         case "league.enter":
           {
+            this.social(u);
             const l = Object.values(this.db.leagues).find(
                 (l) => l.code === String(d.code).toUpperCase(),
               ),
@@ -1046,6 +1074,7 @@ export class Service {
               t.captain === u.id && t.members.length === 3 && !t.locked,
               "Captain needs three approved players and an unlocked roster",
             );
+            for (const member of t.members) this.social(this.db.users[member]);
             assert(
               l!.teams.length < l!.size && !l!.teams.includes(t.id),
               "League is full or team already entered",
@@ -1064,6 +1093,7 @@ export class Service {
           break;
         case "league.start":
           {
+            this.social(u);
             const l = this.db.leagues[d.id];
             assert(
               l && l.owner === u.id && l.status === "registration",
@@ -1090,6 +1120,7 @@ export class Service {
           break;
         case "league.deciders":
           {
+            this.social(u);
             const l = this.db.leagues[d.id];
             assert(
               l && l.owner === u.id && l.status === "qualification-tied",
@@ -1109,6 +1140,7 @@ export class Service {
           break;
         case "league.resolve":
           {
+            this.social(u);
             const l = this.db.leagues[d.id];
             assert(
               l && l.owner === u.id && l.status === "deciding",
@@ -1228,7 +1260,6 @@ export class Service {
           throw Error("Unknown action");
       }
     }
-    this.save();
     return out;
   }
 }

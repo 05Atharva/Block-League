@@ -33,6 +33,7 @@ export function deletionPage(state?: "deleted" | "error") {
     <button type="submit">Delete account</button>
   </form>`
   }
+  <p><a href="/privacy-policy">Block League privacy policy</a></p>
 </main>
 </html>`;
 }

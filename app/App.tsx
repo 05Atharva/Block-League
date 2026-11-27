@@ -519,6 +519,37 @@ function GameApp() {
         }),
     );
   }
+  function openPrivacyPolicy() {
+    const server = local.server.trim().replace(/\/+$/, "");
+    if (!/^https?:\/\/[^\s@/?#]+(?:\/[^\s?#]+)?$/i.test(server)) {
+      info(
+        "Privacy policy",
+        "The privacy policy is available when the game server is configured.",
+      );
+      return;
+    }
+    void Linking.openURL(server + "/privacy-policy").catch(() =>
+      notify(
+        "Could not open the privacy policy. Try again when online.",
+        "error",
+      ),
+    );
+  }
+  const privacyLink = (
+    <Pressable
+      accessibilityRole="link"
+      onPress={openPrivacyPolicy}
+      style={{
+        minHeight: 48,
+        justifyContent: "center",
+        alignSelf: "flex-start",
+      }}
+    >
+      <Txt bold style={{ color: t.brand, textDecorationLine: "underline" }}>
+        Privacy policy
+      </Txt>
+    </Pressable>
+  );
   function removeLocalProfile(id: string, account?: string) {
     if (onlineToken.current?.profile === id) onlineToken.current = null;
     setLocal((current) => {
@@ -1399,15 +1430,16 @@ function GameApp() {
                     ))}
                   </Row>
                   <Txt size={13} muted>
-                    Under 18 and unknown-age profiles have no ad offers.
-                    Children need guardian approval for online play and sharing.
-                    This pilot uses self-declared age groups.
+                    {storeBuild
+                      ? "Players aged 7–12 can play offline. Age groups are self-declared."
+                      : "Under 18 and unknown-age profiles have no ad offers. Children need guardian approval for online play and sharing. This pilot uses self-declared age groups."}
                   </Txt>
                   <Button
                     title="Let’s play"
                     testID="create-profile"
                     onPress={newLocalProfile}
                   />
+                  {privacyLink}
                 </Card>
               </>
             ) : screen === "home" ? (
@@ -2901,6 +2933,7 @@ function GameApp() {
                   <Txt size={23} bold>
                     Online account & recovery
                   </Txt>
+                  {privacyLink}
                   <Txt muted>
                     Solo works offline. Connect for private matches. Keep your
                     recovery key private; it restores this pilot account on a

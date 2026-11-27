@@ -1,5 +1,18 @@
 /** Reviewed-by-code translations for core menus and learning. Native-speaker QA is still required. */
 const words: Record<string, [string, string]> = {
+  "Privacy policy": ["गोपनीयता नीति", "गोपनीयता धोरण"],
+  "The privacy policy is available when the game server is configured.": [
+    "गेम सर्वर कॉन्फ़िगर होने पर गोपनीयता नीति उपलब्ध होगी।",
+    "गेम सर्व्हर सेट केल्यानंतर गोपनीयता धोरण उपलब्ध होईल.",
+  ],
+  "Could not open the privacy policy. Try again when online.": [
+    "गोपनीयता नीति नहीं खुली। ऑनलाइन होने पर फिर कोशिश करें।",
+    "गोपनीयता धोरण उघडता आले नाही. ऑनलाइन झाल्यावर पुन्हा प्रयत्न करा.",
+  ],
+  "Players aged 7–12 can play offline. Age groups are self-declared.": [
+    "7–12 साल के खिलाड़ी ऑफ़लाइन खेल सकते हैं। आयु समूह खिलाड़ी खुद चुनते हैं।",
+    "7–12 वयोगटातील खेळाडू ऑफलाइन खेळू शकतात. खेळाडू स्वतःचा वयोगट निवडतात.",
+  ],
   "Delete online account": ["ऑनलाइन खाता हटाएँ", "ऑनलाइन खाते हटवा"],
   "Delete your Block League account?": [
     "अपना Block League खाता हटाएँ?",

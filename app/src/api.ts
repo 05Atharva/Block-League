@@ -40,6 +40,8 @@ export async function request(
   } finally {
     clearTimeout(timeout);
   }
+  if (json.code === "PERSISTENCE_UNAVAILABLE")
+    throw new NetworkError(json.error);
   if (!json.ok)
     throw new RequestError(json.error || "Request failed", json.code);
   return json.result;

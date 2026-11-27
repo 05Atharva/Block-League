@@ -12,6 +12,7 @@ import {
   finish,
   SHAPES,
 } from "../shared/engine.ts";
+import type { Move } from "../shared/engine.ts";
 function seedFor(index: number) {
   for (let s = 0; s < 10000; s++)
     if (JSON.stringify(piece(s, 0)) === JSON.stringify(SHAPES[index])) return s;
@@ -56,6 +57,20 @@ test("rejects invalid coordinates, overlap, used slot and stale sequence without
   assert.throws(() => place(g, { slot: 1, row: 0, col: 0, seq: 1, id: "c" }));
   assert.throws(() => place(g, { slot: 1, row: 2, col: 2, seq: 0, id: "c" }));
   assert.equal(JSON.stringify(g), before);
+});
+test("malformed move IDs fail for new moves while older accepted logs can be replayed", () => {
+  const seed = seedFor(0);
+  const game = createGame(seed);
+  const move = { ...legalMoves(game)[0], seq: 0, id: "valid" };
+  const expected = place(game, move);
+  for (const id of [17, true, { value: "id" }, "", "a".repeat(101)]) {
+    const legacy = { ...move, id } as Move;
+    assert.throws(() => place(game, legacy), /Move identifier required/);
+    assert.equal(game.moves.length, 0);
+    const replayed = replay(seed, [legacy]);
+    assert.deepEqual(replayed.board, expected.board);
+    assert.equal(replayed.score, expected.score);
+  }
 });
 test("simultaneous row and column clears count intersection once, score both lines", () => {
   const g = createGame(seedFor(0));

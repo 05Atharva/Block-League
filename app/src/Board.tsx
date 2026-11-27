@@ -102,7 +102,11 @@ function TrayPiece({
   settings: Settings;
   selected: number;
   select: (i: number) => void;
-  drag: (x: number, y: number, active: boolean, s: number) => void;
+  drag: (
+    point: { x: number; y: number } | null,
+    active: boolean,
+    slot: number,
+  ) => void;
   disabled?: boolean;
 }) {
   const slot = useRef<React.ElementRef<typeof View>>(null);
@@ -139,17 +143,17 @@ function TrayPiece({
         select(i);
         element.setPointerCapture(event.pointerId);
       }
-      drag(event.clientX, event.clientY, true, i);
+      drag({ x: event.clientX, y: event.clientY }, true, i);
     }
     function end(event: PointerEvent) {
       if (event.type === "lostpointercapture" && event.target !== element)
         return;
       if (!pointer || pointer.id !== event.pointerId) return;
       if (pointer.dragging) {
-        const canceled = event.type !== "pointerup";
         drag(
-          canceled ? 0 : event.clientX,
-          canceled ? 0 : event.clientY,
+          event.type === "pointerup"
+            ? { x: event.clientX, y: event.clientY }
+            : null,
           false,
           i,
         );
@@ -174,7 +178,7 @@ function TrayPiece({
       element.removeEventListener("pointercancel", end);
       element.removeEventListener("lostpointercapture", end);
       element.removeEventListener("click", click, true);
-      if (pointer?.dragging) drag(0, 0, false, i);
+      if (pointer?.dragging) drag(null, false, i);
     };
   }, [drag, draggable, i, select]);
   const pan = useMemo(
@@ -183,9 +187,10 @@ function TrayPiece({
         onMoveShouldSetPanResponder: (_, g) =>
           !disabled && Math.abs(g.dx) + Math.abs(g.dy) > 6,
         onPanResponderGrant: () => select(i),
-        onPanResponderMove: (_, g) => drag(g.moveX, g.moveY, true, i),
-        onPanResponderRelease: (_, g) => drag(g.moveX, g.moveY, false, i),
-        onPanResponderTerminate: () => drag(0, 0, false, i),
+        onPanResponderMove: (_, g) => drag({ x: g.moveX, y: g.moveY }, true, i),
+        onPanResponderRelease: (_, g) =>
+          drag({ x: g.moveX, y: g.moveY }, false, i),
+        onPanResponderTerminate: () => drag(null, false, i),
       }),
     [disabled, drag, i, select],
   );
@@ -375,19 +380,20 @@ export function Board({
     [setAnchor, setSelected],
   );
   const drag = useCallback(
-    (x: number, y: number, active: boolean, slot: number) => {
+    (point: { x: number; y: number } | null, active: boolean, slot: number) => {
       onDragging?.(active);
-      if (active || x || y) {
-        const b = bounds.current;
-        const c = Math.floor(
-            (x - b.x - boardInset) / ((b.w - 2 * boardInset) / 8),
-          ),
-          r = Math.floor((y - b.y - boardInset) / ((b.w - 2 * boardInset) / 8));
-        if (r >= 0 && r < 8 && c >= 0 && c < 8) {
-          setSelected(slot);
-          setAnchor([r, c]);
-        }
+      if (!point) {
+        setAnchor(null);
+        return;
       }
+      const b = bounds.current;
+      const side = (b.w - 2 * boardInset) / 8;
+      const c = Math.floor((point.x - b.x - boardInset) / side);
+      const r = Math.floor((point.y - b.y - boardInset) / side);
+      if (r >= 0 && r < 8 && c >= 0 && c < 8) {
+        setSelected(slot);
+        setAnchor([r, c]);
+      } else setAnchor(null);
     },
     [onDragging, setAnchor, setSelected],
   );

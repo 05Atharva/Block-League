@@ -176,12 +176,15 @@ export function legalMoves(
         if (fits(g, s, r, c)) out.push({ slot: s, row: r, col: c });
   return out;
 }
+export function validMoveId(id: unknown): id is string {
+  return typeof id === "string" && id.length > 0 && id.length <= 100;
+}
 export function place(g: Game, m: Move): Game {
   if (g.rules !== RULES) throw Error("Unsupported rules version");
   if (g.done) throw Error("This attempt is complete");
   if (m.seq !== g.moves.length)
     throw Error("Move sequence is stale. Refresh your board.");
-  if (!m.id || m.id.length > 100) throw Error("Move identifier required");
+  if (!validMoveId(m.id)) throw Error("Move identifier required");
   if (!fits(g, m.slot, m.row, m.col))
     throw Error("That piece does not fit here");
   const n: Game = {
@@ -243,7 +246,10 @@ export function replay(
   limit = 30,
   beginner = false,
 ): Game {
-  return moves.reduce((g, m) => place(g, m), createGame(seed, limit, beginner));
+  return moves.reduce(
+    (g, m) => place(g, validMoveId(m.id) ? m : { ...m, id: "legacy-" + m.seq }),
+    createGame(seed, limit, beginner),
+  );
 }
 export function hint(g: Game) {
   let best: ReturnType<typeof legalMoves>[number] | undefined,

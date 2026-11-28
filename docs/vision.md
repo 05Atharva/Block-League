@@ -1,7 +1,7 @@
 # Block League — Product Vision
 
 **Owner:** Atharva Kanawade  
-**Document:** `vision.md` · Version 1.1 · 28 November 2026\
+**Document:** `vision.md` · Version 1.2 · 28 November 2026\
 **Status:** Research-informed vision baseline for product, design and engineering review. This document does not certify launch readiness or establish product–market fit.  
 **Product:** A mobile block-puzzle game, built around relaxed solo play, fair friend competition and private team seasons.
 
@@ -18,6 +18,8 @@ The business should earn sustainable revenue from a game people choose to revisi
 ## 2. What this document establishes
 
 This vision reconciles the existing product specification, all 50 user stories, the documented v0.3 development build and current primary-source research. It provides direction and decision boundaries; the detailed specification and versioned rules engine remain necessary implementation references.
+
+The [product roadmap](PRODUCT-ROADMAP.md) sequences the proposals, dependencies and acceptance checks.
 
 Four evidence labels apply throughout:
 
@@ -132,12 +134,14 @@ Competitive generation uses a deterministic, versioned sequence. It must not var
 | Learn / beginner practice | Teach placement, clears and planning. | Free help; assisted/unranked results. |
 | Classic | Open-ended solo play and personal improvement. | Untimed, autosaved and playable offline. A run locks out when no piece fits. Its earned records survive a restart. |
 | Face-Off | Short private friend competition. | Server-validated, equal sequence and fixed published limits. |
+| CPU Duel                  | Play a complete match whenever a friend is unavailable.             | Offline and unranked. Same pieces on independent boards, visible CPU difficulty and separate results.              |
 | Asynchronous challenge | Compete around different schedules. | Online authoritative attempt within a visible deadline; not unrestricted offline ranked submission. |
 | Local Family Duel | Share one device. | Pass-and-play, private handoff and explicitly unranked. |
 | Mini League | Prove the shared-season experience. | Four teams; roster and attendance rules published before entry. |
 | Championship | Extend a successful league format. | Eight teams with seeded playoffs; only expose when operationally ready. |
 | Weekly Board | Proposed first shared puzzle outside matches and seasons. | Same versioned board and pieces for everyone. Private friend comparisons and replayable practice. |
-| Daily Board | Possible faster cadence after the weekly format proves its value. | One verified attempt, separate practice and no streak penalty. |
+| Daily Puzzles             | A personalised 3–5 minute puzzle that advances a persistent map.    | One qualifying completion per day, free retries and optional friend streak sharing.                                |
+| Shared Daily Board        | Possible faster cadence if demand for the Weekly Board warrants it. | Same board for official comparison, with its own rules and separate practice.                                      |
 | Journey | Proposed short authored puzzles that teach specific skills. | Start with six validated boards and expand toward the original 30-board proposal if players return. |
 | Open Table | Proposed optional continuation through fresh boards. | Separate unranked save and progress. Classic records remain final. |
 | Blitz | Optional later speed variant. | Separate rules and rankings; never the default. |
@@ -202,8 +206,9 @@ The latest QA retest reached Solo lockout, finished a two-player Face-Off and co
 | Priority | Proposal | How it works and what to test |
 |---|---|---|
 | **First** | **Classic and personal records** | Keep **Play** or **Resume** prominent. At lockout, show score versus personal best, lines cleared and the best clear of the run. Offer **Play again** and **Review moves**. Save the earned result before either action. Test whether players voluntarily start another board and can resume after an interruption. |
-| **Next** | **Weekly Board** | Start with a fixed board and piece sequence, a visible placement limit, and one official result per eligible player. Players can compare with invited friends or play privately. Use a server-issued board and deadline shown in local time. Keep past boards available for unranked practice. Start weekly to give friends with different schedules time to finish. Test whether they return for the next board. |
-| **Then** | **Journey** | Offer six authored boards that teach decisions such as preserving a corner or setting up a crossing clear. A first example asks the player to clear a row and column on the same move within four placements. Verify a solution under the published rules before exposing each board. Let players retry freely and return to Classic at any point. Expand toward 30 when people complete the first pack and voluntarily try another. |
+| **Next**               | **Journey and Daily Puzzles**    | Build a six-board Journey pack and a reusable puzzle catalogue. Teach decisions such as preserving a corner or setting up a crossing clear. A first example asks the player to clear a row and column in one move within four placements. Validate each solution. Let players retry freely and return to Classic at any point. Use a larger, varied catalogue for the personalised daily map. Expand Journey toward 30 when players complete the first pack and voluntarily try another. |
+| **Then**               | **Weekly Board**                 | Start with a fixed board and piece sequence, a visible placement limit, and one official result per eligible player. Players can compare with invited friends or play privately. Use a server-issued board and deadline shown in local time. Keep past boards available for unranked practice. Start weekly to give friends with different schedules time to finish. Test whether they return for the next board.                                                                        |
+| **Parallel prototype** | **CPU Duel**                     | Use the shared rules engine to calibrate three difficulty tiers on repeatable seeds. Pilot offline matches with separate achievements after board, replay and budget-device checks pass.                                                                                                                                                                                                                                                                                                 |
 | **Experiment** | **Open Table** | After Classic lockout, offer an optional fresh board in a separate, offline-capable unranked session. Each lockout records the board and carries forward completed boards and total lines cleared. Players choose whether to deal another board or leave. Keep a separate save so starting or resuming Open Table leaves Classic intact. Test demand for extended play before giving it a permanent home-screen slot. |
 
 Use the same core placement rules and authored motion throughout. Keep official Face-Off and season limits intact. Classic runs, assisted progress and verified competition results each retain their own record. Preserve ordinary play when players miss a board, skip an event or decline an offer.
@@ -214,6 +219,32 @@ Use the same core placement rules and authored motion throughout. Keep official 
 - **Kiln & Clay** pairs warm paper and matte terracotta with a cobalt accent. Unlock it after completing the first Journey pack at any pace.
 
 Themes are permanent, optional and appearance-only. Keep tile silhouettes, patterns, tap targets and placement cues consistent across light, dark and high contrast. A theme can add a short variation to the existing line-clear or result animation. Reduced motion retains the same information through a static cue. Test previews and earned unlocks at 200% text on small phones before shipping a theme.
+
+### 8.4 Daily puzzle map and streaks
+
+I want a small puzzle I can finish on a break. A completed board should place one tile on my map, give me something specific to be proud of and let me stop. Chess.com’s published puzzle progression, streaks and CPU opponents illustrate different reasons to return. Block League’s map follows its own board-game club identity. [S19] [S20] [S21]
+
+- Give each profile one short puzzle per day, drawn from a validated pool at the player’s chosen difficulty. Rotate board layouts and objectives such as clearing a crossing, placing a difficult tray or reaching a target within a move allowance. Aim for **3–5 minutes** of play with no countdown. The issued puzzle stays the same across retries, reloads and devices. A move allowance is visible before play. A profile receives varied assignments over time, and two friends can receive different boards on the same day.
+- Grow the map one tile per qualifying daily completion. Show the current streak, best streak and total completed days as different numbers. A missed day ends the current streak. The map, earned titles, tags, themes and best streak are permanent. Free retries, hints and optional archive practice keep the puzzle available at the player’s pace. Keep the daily streak separate from the Classic consecutive-clear streak.
+- Calculate shared streaks from verified completions. The pilot uses midnight UTC and shows each issued board’s deadline in local time. Retries, reinstalling and device clock changes earn no extra day. Players can solve a cached board offline and verify it before the deadline. Late solves stay in practice.
+- Let mutually accepted adult friends see the current streak and selected verified profile awards when the player opts in. Friend visibility starts off. Either player can remove a connection, and a player can turn sharing off at any time. Friends see the chosen alias and current count. Activity dates and personal assignments remain private. Protected profiles retain offline practice.
+- Compare performance on the same board in **Weekly Board**. Personal daily assignments can differ in difficulty and objectives. Keep those results private by default and use streak counts as participation history.
+
+### 8.5 Achievements, titles and tags
+
+| Type        | Player experience                                                                                       | First examples                                                                                                                                                                 |
+| ----------- | ------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Achievement | A permanent badge for a specific accomplishment. Show the earning rule and progress towards it.         | **Cross Clear** for clearing across both axes in one move, **First CPU Win** for a first eligible practice win, and **Team Contributor** for a published fixture contribution. |
+| Title       | An earned label the player can choose to show next to their alias.                                      | **Week Builder** for a seven-day puzzle streak and **Club Regular** for a thirty-day streak. Both remain earned after a missed day.                                            |
+| Tag         | A small collection or profile label the player can display. Context labels accompany the result itself. | An earned **7-Day Streak** tag and result labels such as **Assist Used**, **CPU Practice** and **Verified Face-Off**.                                                          |
+
+Keep a collection with the earning rule, progress, date and optional equip control. Separate skill, participation, practice and verified competition awards. Show newly earned items once, with a short tile-lock animation and a static reduced-motion treatment. Save achievements locally, prevent duplicate grants on repeat submissions and restore synced awards through authorised recovery. Private invitations and opt-in visibility apply to shared awards. No achievement alters placement, scoring or fixture results.
+
+### 8.6 CPU Duel
+
+Offer human versus CPU from Play. Start with original opponents at **Starter**, **Planner** and **Architect** difficulty. These are CPU skill tiers calibrated with playtests and fixed seed sets. The player sees the tier and the placement cap before starting. Both sides receive the same versioned sequence, play independent boards and follow the same scoring and finish rules. For the first version, test a 30-placement cap with no timer.
+
+Each opponent uses a different legal-move strategy and a repeatable search budget. The CPU sees its own board and current tray, with the same information a player has. Save both boards and record the CPU policy version so the result can be replayed. Make every opponent clearly labelled **CPU** and give the player a fresh-seed rematch. CPU rewards and results belong in a practice record. Face-Off, verified player ratings and Club standings retain their own results.
 
 ## 9. Visual, interaction and motion direction
 
@@ -349,7 +380,7 @@ Treat these as readiness stages rather than fixed delivery dates. Several later-
 | **C. Mini League pilot** | Four-team seasons and flexible fixture windows. | Full seasons complete, tie/no-show paths are exercised, organiser burden is acceptable and groups choose to return. |
 | **D. Adult monetisation pilot** | Real optional rewarded cosmetics, then limited solo-break ads if justified. | Test-unit and provider verification pass; age/consent routing, decline/failure paths and measurement are working. Retention and trust guardrails are set before exposure. |
 | **E. Broader family and language release** | Protected younger players, family leagues, complete Hindi/Marathi and stronger recovery. | Guardian/privacy/store review, moderation operations, native accessibility and native-speaker acceptance complete. |
-| **F. Expansion** | Pilot Weekly Board, then a small Journey pack and earned themes. Test Open Table if players want a longer session. Consider Daily Board and Championship expansion after participation is established. | Compare voluntary replay, next-board return and completed private challenges with the pilot baseline. Confirm native-device performance and accessible controls before expansion. Billing and restore require their own acceptance. |
+| **F. Expansion**                           | Pilot Journey and the personal puzzle map, then opt-in friend streaks and Weekly Board. Calibrate CPU Duel in parallel. Add earned themes and test Open Table when players want longer sessions. | Check daily credit, voluntary return, friend privacy, CPU fairness, native accessibility and round performance. Give Shared Daily Board, Championship expansion and billing their own acceptance gates. |
 
 An early public release need not contain every long-term story. Do not market a protected child service, monetised release or fully accessible game before the corresponding gate passes.
 
@@ -380,7 +411,9 @@ The distinguishing social measure is **returning private groups that complete co
 | First meaningful play | New eligible players completing their first round/duel, with abandoned starts reported separately. |
 | Voluntary solo replay | Completed Classic runs followed by a fresh run, with quick exits still available and resumed saves counted separately. |
 | Repeat shared-board participation | Weekly Board players who finish the next board. Track solo completions and repeat participation by private groups separately. |
+| Daily puzzle habit                | First puzzle completion, typical play time, return after a missed day and voluntary map progression. Keep streak visibility opt-in.            |
 | Authored puzzle follow-through | Journey players who complete the first pack and choose another. Record where players stall and whether the objective was clear. |
+| CPU practice                      | Match completion and rematch rate by tier, score distributions on common seeds and reported fairness.                                          |
 | D1/D7 retention | Share of a new-player cohort returning on day 1/day 7 after first play; freeze timezone and day-window definitions before analysis. |
 | Invitation conversion | Eligible invite recipients who start and finish the intended activity; distinguish opened links from people and filter repeated opens. |
 | Rematch rate | Finalised duels followed by a mutually started fresh rematch; distinguish an offer from acceptance. |
@@ -510,7 +543,7 @@ The following table preserves every original story ID and its current recorded s
 
 ## 19. Sources and project records
 
-Baseline sources were accessed on **26 November 2026**. The replayability update reviewed [S1], [S17] and [S18] on **28 November 2026**. Publisher listings record advertised features. The audience, rules, frequency caps and roadmap are Block League proposals.
+Baseline sources were accessed on **26 November 2026**. The replayability update reviewed [S1] and [S17]–[S21] on **28 November 2026**. Publisher sources describe their own features. The audience, rules, frequency caps and roadmap are Block League proposals.
 
 ### External primary sources
 
@@ -532,6 +565,9 @@ Baseline sources were accessed on **26 November 2026**. The replayability update
 - **[S16] Google Play — Data practices in Families apps.** Restrictions on transmitting specified identifiers from children and unknown-age users. <https://support.google.com/googleplay/android-developer/answer/11043825>
 - **[S17] Google Play — Candy Crush Saga, King.** Authored levels and ongoing additions. <https://play.google.com/store/apps/details?id=com.king.candycrushsaga>
 - **[S18] SYBO — Subway Surfers.** Endless run format and rotating city settings. <https://sybogames.com/>
+- **[S19] Chess.com — Puzzle points.** Puzzle progression and friends’ progress views. <https://support.chess.com/en/articles/9681952-what-are-puzzle-points-on-chess-com>
+- **[S20] Chess.com — Streaks.** Daily participation milestones. <https://support.chess.com/en/articles/9714718-what-are-streaks>
+- **[S21] Chess.com — Play against bots.** Unrated opponents with different difficulty tiers. <https://support.chess.com/en/articles/8614091-how-can-i-play-against-the-chess-com-bots>
 
 ### Internal project evidence
 

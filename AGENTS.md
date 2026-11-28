@@ -8,6 +8,7 @@ Block League is a mobile-first, silent-first puzzle game. The primary audience i
 - Keep Solo one tap from Play after setup, show a saved board before offering a fresh one, and disclose duel limits before entry. Keep team and season detail within Club.
 - Preserve the confirmed placement flow, personal versus verified records, private aliases, child privacy gates, rule versioning, and authoritative scoring. Visual changes belong in the client. Rules are shared in `shared/` and competitive results are adjudicated by `server/`.
 - Recognize real events such as a line clear, completed round, earned badge, or verified result. Keep exits easy and preserve earned progress.
+- Read the [roadmap pilot rules](docs/PRODUCT-ROADMAP.md#pilot-rules) when editing puzzles or progression. Keep Daily and Weekly verification on the server, friend visibility opt-in, and CPU and Open Table saves separate from Classic and official results.
 
 ## Design and engineering
 
@@ -18,3 +19,5 @@ Block League is a mobile-first, silent-first puzzle game. The primary audience i
 ## Validation
 
 Run `npm test` and `npm run check`. For UI changes, run `npm run build:web` and `npm run test:ui`, then inspect the changed screens at narrow phone width in light and dark. Run `npm run test:motion` for changes to motion and `npm run test:interactions` for overlays, notifications, and offline submission. Check high contrast, 200% text, and keyboard navigation as applicable. Update the exported browser build for changes visible in the client. Attribute browser evidence to browser checks and record physical-device checks separately.
+
+For roadmap flows, also run `node --experimental-strip-types tests/puzzles-ui.mjs` against the exported build.

@@ -18,7 +18,7 @@ import {
 } from "react-native";
 import { piece, colour, fits } from "../../shared/engine";
 import type { Game } from "../../shared/engine";
-import { themes, palettes, motionSpec } from "./design";
+import { themes, palettes, motionSpec, earnedBoardTones } from "./design";
 import type { Settings } from "./design";
 import { animate } from "./motion";
 import { Txt } from "./ui";
@@ -311,7 +311,12 @@ export function Board({
   onDragging,
   small,
 }: Props) {
-  const t = themes[settings.theme],
+  const tones =
+    settings.theme !== "contrast" &&
+    (settings.palette === "monsoon" || settings.palette === "kiln")
+      ? earnedBoardTones[settings.palette]
+      : undefined;
+  const t = { ...themes[settings.theme], ...tones },
     board = useRef<React.ElementRef<typeof View>>(null),
     bounds = useRef({ x: 0, y: 0, w: 320 }),
     [width, setWidth] = useState(320);

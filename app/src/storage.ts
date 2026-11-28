@@ -5,6 +5,7 @@ import type { Settings } from "./design";
 import type { Game } from "../../shared/engine";
 import type { InboxItem } from "./notifications";
 import type { AsyncDraft } from "./asyncDraft";
+import type { PlayProgress } from "./playProgress";
 export type Profile = {
   id: string;
   alias: string;
@@ -24,6 +25,7 @@ export type Profile = {
   sharing?: boolean;
   inbox?: InboxItem[];
   asyncDrafts?: Record<string, AsyncDraft>;
+  extras?: PlayProgress;
   history: { score: number; mode: string; at: number }[];
 };
 export type Local = { profiles: Profile[]; active: string; server: string };

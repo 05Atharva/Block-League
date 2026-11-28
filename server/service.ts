@@ -21,6 +21,8 @@ import {
   RULES,
 } from "../shared/engine.ts";
 import type { Game, Move } from "../shared/engine.ts";
+import { puzzleAction, removePuzzlePlayer } from "./puzzle-progress.ts";
+import type { PuzzleProgress } from "./puzzle-progress.ts";
 import {
   roundRobin,
   standings,
@@ -125,6 +127,7 @@ type DB = {
   leagues: Record<string, League>;
   reports: any[];
   rewardEvents: Record<string, { user: string; state: string }>;
+  puzzles: PuzzleProgress;
 };
 export class Service {
   db: DB;
@@ -153,7 +156,9 @@ export class Service {
             leagues: {},
             reports: [],
             rewardEvents: {},
+            puzzles: {},
           };
+    this.db.puzzles ??= {};
     // Editions saved before roster snapshots kept each entered team locked indefinitely.
     for (const league of Object.values(this.db.leagues))
       league.rosters ??= Object.fromEntries(
@@ -210,6 +215,7 @@ export class Service {
     return this.transact(() => this.removeAccount(uid));
   }
   private removeAccount(uid: string) {
+    removePuzzlePlayer(this.db.puzzles, uid);
     this.db.users[uid] = {
       id: uid,
       alias: "Deleted player",
@@ -672,6 +678,20 @@ export class Service {
       out = { token: session, user: this.publicUser(u) };
     } else {
       const u = this.me(token);
+      if (/^(puzzle|weekly|friends)\./.test(action)) {
+        assert(
+          u.age !== "7-12" || (!this.production && u.social),
+          "Protected profiles play puzzles offline",
+        );
+        return puzzleAction(
+          this.db.puzzles,
+          this.db.users,
+          u,
+          action,
+          d ?? {},
+          this.clock(),
+        );
+      }
       switch (action) {
         case "me":
           out = this.publicUser(u);
@@ -721,6 +741,12 @@ export class Service {
                       ),
                     )
                   : [],
+                extras:
+                  p.extras &&
+                  typeof p.extras === "object" &&
+                  p.extras.version === 1
+                    ? p.extras
+                    : u.cloud?.progress.extras,
               },
             };
             out = { revision: current + 1 };

@@ -43,6 +43,9 @@ import {
 import type { Settings } from "./src/design";
 import { BrandMark } from "./src/brand";
 import { PlayHome } from "./src/PlayHome";
+import { PuzzleHub } from "./src/PuzzleHub";
+import type { ExtraPanel } from "./src/PuzzleHub";
+import { JOURNEY, TAGS, TITLES, puzzleSolved } from "../shared/puzzles";
 import { ResultMark, ScoreBeat } from "./src/GameFeedback";
 import { useScreenArrival } from "./src/motion";
 import {
@@ -78,6 +81,7 @@ import {
   fits,
   replay,
   badgeIds,
+  bestPlacement,
 } from "../shared/engine";
 import type { Game, Move } from "../shared/engine";
 import {
@@ -193,6 +197,14 @@ function GameApp() {
     [setToast],
   );
   const dismissToast = useCallback(() => setToast(null), [setToast]);
+  const [extraPanel, setExtraPanel] = useState<ExtraPanel>("daily");
+  const screenScroll =
+    useRef<React.ElementRef<typeof Animated.ScrollView>>(null);
+  const scrollToTop = useCallback(
+    () => screenScroll.current?.scrollTo({ y: 0, animated: false }),
+    [],
+  );
+  const [highlightMove, setHighlightMove] = useState({ step: 0, gain: 0 });
   const [form, setForm] = useState<Record<string, string>>(emptyForm);
   const [room, setRoom] = useState<any>(null),
     [roomCode, setRoomCode] = useState(""),
@@ -257,6 +269,10 @@ function GameApp() {
   function go(next: string) {
     setScreen(next);
     setToast(null);
+  }
+  function openExtras(panel: ExtraPanel) {
+    setExtraPanel(panel);
+    go("extras");
   }
   function resetProfileViews() {
     profileView.current++;
@@ -333,6 +349,7 @@ function GameApp() {
         saved: profile.saved,
         history: profile.history,
         badges: profile.badges,
+        extras: profile.extras,
       })
     : "";
   const storedRevision = useEffectEvent(() => profile?.cloudRevision ?? 0);
@@ -902,6 +919,7 @@ function GameApp() {
   }
   function completeLocal(g: Game) {
     const completedAt = now;
+    if (mode === "solo") setHighlightMove(bestPlacement(g));
     const label =
       mode === "practice"
         ? "Assisted practice"
@@ -1098,6 +1116,7 @@ function GameApp() {
     result: "Results",
     replay: "The replay room",
     reward: "Cosmetic studio",
+    extras: "Play & progress",
     help: s.learn,
     newprofile: "New local profile",
   };
@@ -1348,7 +1367,7 @@ function GameApp() {
               </Txt>
             )}
           </View>
-          {toast && !sharePreview && (
+          {toast && !sharePreview && screen !== "extras" && (
             <View pointerEvents="box-none" style={{ height: 0, zIndex: 2 }}>
               <View
                 pointerEvents="box-none"
@@ -1364,6 +1383,7 @@ function GameApp() {
             </View>
           )}
           <Animated.ScrollView
+            ref={screenScroll}
             key={screen}
             testID="screen-content"
             style={screenArrival}
@@ -1386,6 +1406,9 @@ function GameApp() {
             }}
             keyboardShouldPersistTaps="handled"
           >
+            {screen === "extras" && toast && (
+              <Toast key={toast.id} message={toast} close={dismissToast} />
+            )}
             {savedError && (
               <Card>
                 <Txt>Could not save on this device. Keep this page open.</Txt>
@@ -1454,6 +1477,29 @@ function GameApp() {
                 onLearn={() => start("learn")}
                 onPractice={() => start("practice")}
                 onFamily={() => start("family")}
+                onPuzzles={() => openExtras("daily")}
+                onCpu={() => openExtras("cpu")}
+                onOpen={() => openExtras("open")}
+              />
+            ) : screen === "extras" ? (
+              <PuzzleHub
+                key={profile.id}
+                profile={profile}
+                panel={extraPanel}
+                settings={effective}
+                server={local.server}
+                now={now}
+                update={(extras) => updateProfile({ extras })}
+                online={ensureOnline}
+                navigate={(panel) => {
+                  dismissToast();
+                  setExtraPanel(panel);
+                }}
+                onDragging={setDragging}
+                confirm={confirmChange}
+                notify={notify}
+                themesPage={() => go("reward")}
+                scrollToTop={scrollToTop}
               />
             ) : screen === "game" && handoff ? null : screen === "game" ? (
               <>
@@ -1991,6 +2037,16 @@ function GameApp() {
                       New solo best
                     </Txt>
                   )}
+                  {mode === "solo" && highlightMove.step > 0 && (
+                    <Txt
+                      style={{
+                        color:
+                          settings.theme === "contrast" ? t.text : brand.quiet,
+                      }}
+                    >
+                      Best placement · +{highlightMove.gain.toLocaleString()}
+                    </Txt>
+                  )}
                   <Txt
                     style={{
                       color:
@@ -2052,6 +2108,13 @@ function GameApp() {
                   title="Play again"
                   onPress={() => start(mode === "learn" ? "solo" : mode)}
                 />
+                {mode === "solo" && (
+                  <Button
+                    secondary
+                    title="Explore Open Table"
+                    onPress={() => openExtras("open")}
+                  />
+                )}
                 <Row>
                   <Button
                     secondary
@@ -2072,6 +2135,16 @@ function GameApp() {
                     go("replay");
                   }}
                 />
+                {mode === "solo" && highlightMove.step > 0 && (
+                  <Button
+                    secondary
+                    title="Review best placement"
+                    onPress={() => {
+                      setReplayStep(highlightMove.step);
+                      go("replay");
+                    }}
+                  />
+                )}
                 <Button
                   secondary
                   title="That’s enough for now"
@@ -2739,21 +2812,7 @@ function GameApp() {
                   secondary
                   title="Jump to my biggest clear"
                   onPress={() => {
-                    let best = 0,
-                      gain = -1;
-                    for (let i = 1; i <= game.moves.length; i++) {
-                      const g = replay(
-                        game.seed,
-                        game.moves.slice(0, i),
-                        game.limit,
-                        game.beginner,
-                      );
-                      if (g.last.gain > gain) {
-                        gain = g.last.gain;
-                        best = i;
-                      }
-                    }
-                    setReplayStep(best);
+                    setReplayStep(bestPlacement(game).step);
                   }}
                 />
                 <Row style={{ alignItems: "flex-start" }}>
@@ -2818,6 +2877,25 @@ function GameApp() {
             ) : screen === "profile" ? (
               <>
                 <Tag>PRIVATE BY DEFAULT</Tag>
+                {profile.extras && (
+                  <Row>
+                    {TITLES.filter(
+                      ([id]) => id === profile.extras?.equipped.title,
+                    ).map(([id, name]) => (
+                      <Tag key={id}>{name}</Tag>
+                    ))}
+                    {TAGS.filter(([id]) =>
+                      profile.extras?.equipped.tags.includes(id),
+                    ).map(([id, name]) => (
+                      <Tag key={id}>{name}</Tag>
+                    ))}
+                  </Row>
+                )}
+                <Button
+                  secondary
+                  title="Titles, tags and achievements"
+                  onPress={() => openExtras("awards")}
+                />
                 <Txt size={34} bold>
                   {profile.alias}’s corner
                 </Txt>
@@ -3290,6 +3368,14 @@ function GameApp() {
                     const unlocked =
                       key === "club" ||
                       (key === "garden" && profile.stars >= 5) ||
+                      (key === "monsoon" &&
+                        (profile.badges.includes("cross-clear") ||
+                          profile.extras?.crossing)) ||
+                      (key === "kiln" &&
+                        JOURNEY.every(({ id }) => {
+                          const run = profile.extras?.journey[id];
+                          return run && puzzleSolved(run.puzzle, run.game);
+                        })) ||
                       (key === "aurora" &&
                         profile.user?.rewards?.includes("aurora"));
                     return (
@@ -3299,7 +3385,11 @@ function GameApp() {
                             ? "Club confetti"
                             : key === "garden"
                               ? "Garden party"
-                              : "Aurora"}
+                              : key === "monsoon"
+                                ? "Monsoon Tile"
+                                : key === "kiln"
+                                  ? "Kiln & Clay"
+                                  : "Aurora"}
                         </Txt>
                         <Row>
                           {colors.map((c) => (
@@ -3319,7 +3409,11 @@ function GameApp() {
                             ? "Earn 5 stars. Finish a round with at least 3 placements for a star. No ad or purchase."
                             : key === "aurora"
                               ? "Adult-only reward-provider development preview."
-                              : "Yours from the first move."}
+                              : key === "monsoon"
+                                ? "Clear a row and a column with one placement."
+                                : key === "kiln"
+                                  ? "Complete all six Journey boards."
+                                  : "Yours from the first move."}
                         </Txt>
                         <Button
                           secondary

@@ -106,6 +106,7 @@ async function playSolo(page) {
   await waitSavedMove(page, 1);
   const initial = (await state(page)).saved;
   let game = place(createGame(initial.seed, initial.limit), initial.moves[0]);
+  let best = { step: 1, gain: game.last.gain };
   assert.deepEqual(initial.board, game.board);
   assert.equal(initial.score, game.score);
   let resumed = false;
@@ -127,6 +128,8 @@ async function playSolo(page) {
       assert.equal(saved.score, next.score);
     }
     game = next;
+    if (game.last.gain > best.gain)
+      best = { step: game.moves.length, gain: game.last.gain };
     if (!resumed && game.moves.length >= 4 && !game.done) {
       await page.reload();
       await page.getByTestId("play-solo").tap();
@@ -147,6 +150,10 @@ async function playSolo(page) {
   assert.equal(profile.saved, null);
   await page.getByText(/placements · No pieces fit/).waitFor();
   await screenshot(page, "01-solo-lockout.png");
+  await shown(page, `Best placement · +${best.gain.toLocaleString()}`);
+  await button(page, "Review best placement").tap();
+  await shown(page, `Move ${best.step}`);
+  await button(page, "Back to result").tap();
   await button(page, "Play again").tap();
   await shown(page, "0 placed");
   console.log(

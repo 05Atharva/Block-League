@@ -273,3 +273,17 @@ export function badgeIds(g: Game, verified = false): string[] {
     verified && g.done && g.moves.length > 0 ? "clean-duel" : "",
   ].filter(Boolean);
 }
+
+export function bestPlacement(game: Game) {
+  let stage = createGame(game.seed, game.limit, game.beginner);
+  let best = { step: 0, gain: 0 };
+  for (const move of game.moves) {
+    stage = place(
+      stage,
+      validMoveId(move.id) ? move : { ...move, id: "legacy-" + move.seq },
+    );
+    if (stage.last.gain > best.gain)
+      best = { step: stage.moves.length, gain: stage.last.gain };
+  }
+  return best;
+}

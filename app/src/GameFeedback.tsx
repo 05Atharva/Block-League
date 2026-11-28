@@ -1,8 +1,67 @@
 import React, { useLayoutEffect, useRef, useState } from "react";
 import { Animated, View } from "react-native";
-import { brand, motionSpec, space } from "./design";
+import { brand, motionSpec, radius, space, themes } from "./design";
+import type { Settings } from "./design";
 import { Txt } from "./ui";
 import { animate } from "./motion";
+
+export function DailyTileStamp({
+  settings,
+  day,
+}: {
+  settings: Settings;
+  day: string;
+}) {
+  const t = themes[settings.theme];
+  const [press] = useState(() => new Animated.Value(settings.motion ? 0 : 1));
+  useLayoutEffect(() => {
+    if (!settings.motion) {
+      press.setValue(1);
+      return;
+    }
+    const seat = animate(press, 1, motionSpec.release);
+    seat.start();
+    return () => seat.stop();
+  }, [press, settings.motion]);
+  return (
+    <View style={{ flexDirection: "row", alignItems: "center", gap: space.md }}>
+      <Animated.View
+        testID="daily-stamp"
+        style={{
+          borderRadius: radius.field,
+          minHeight: 46,
+          minWidth: 46,
+          alignItems: "center",
+          justifyContent: "center",
+          padding: space.sm,
+          backgroundColor: t.action,
+          transform: settings.motion
+            ? [
+                {
+                  scale: press.interpolate({
+                    inputRange: [0, 0.67, 1],
+                    outputRange: [0.76, 1.08, 1],
+                  }),
+                },
+              ]
+            : [],
+        }}
+      >
+        <Txt aria-hidden bold style={{ color: t.onAction }}>
+          ✓
+        </Txt>
+      </Animated.View>
+      <View style={{ flex: 1, minWidth: 0 }}>
+        <Txt bold accessibilityLiveRegion="polite">
+          Daily tile verified.
+        </Txt>
+        <Txt muted size={14}>
+          {day} on your map
+        </Txt>
+      </View>
+    </View>
+  );
+}
 
 export function ScoreBeat({
   score,

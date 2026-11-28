@@ -82,6 +82,9 @@ export function PlayHome({
   onLearn,
   onPractice,
   onFamily,
+  onPuzzles,
+  onCpu,
+  onOpen,
 }: {
   profile: Profile;
   onSolo: () => void;
@@ -90,6 +93,9 @@ export function PlayHome({
   onLearn: () => void;
   onPractice: () => void;
   onFamily: () => void;
+  onPuzzles: () => void;
+  onCpu: () => void;
+  onOpen: () => void;
 }) {
   const settings = useContext(Design);
   const t = themes[settings.theme];
@@ -97,6 +103,9 @@ export function PlayHome({
   const { width } = useWindowDimensions();
   const showArt = settings.textSize < 1.25 && width >= 350;
   const showRecord = profile.best > 0 || profile.stars > 0;
+  const latestSolo = profile.history.findLast(
+    (round) => round.mode === "Unassisted Solo",
+  );
   const heroInk = settings.theme === "contrast" ? t.text : brand.paper;
   const heroQuiet = settings.theme === "contrast" ? t.muted : brand.quiet;
   const artSize = Math.min(188, Math.max(112, width * 0.35));
@@ -146,6 +155,11 @@ export function PlayHome({
                 ? `${profile.saved.score.toLocaleString()} points · saved on this device`
                 : "Clear lines and beat your best."}
             </Txt>
+            {latestSolo && !profile.saved && (
+              <Txt size={13} style={{ color: heroQuiet }}>
+                Last run · {latestSolo.score.toLocaleString()} pts
+              </Txt>
+            )}
           </View>
           {showArt && <BrandBoard size={artSize} />}
         </View>
@@ -195,6 +209,26 @@ export function PlayHome({
           detail="Teams, fixtures and standings"
           symbol="◇"
           onPress={onClub}
+        />
+      </Row>
+      <Row style={{ alignItems: "stretch" }}>
+        <ModeLink
+          title="Puzzles"
+          detail="Daily map, Journey and Weekly Board"
+          symbol="✦"
+          onPress={onPuzzles}
+        />
+        <ModeLink
+          title="CPU Duel"
+          detail="Three opponents to play offline"
+          symbol="⊡"
+          onPress={onCpu}
+        />
+        <ModeLink
+          title="Open Table"
+          detail="Untimed chapters with a separate save"
+          symbol="∞"
+          onPress={onOpen}
         />
       </Row>
       <Row>

@@ -65,16 +65,18 @@ export function privacyPolicyPage(
   ${contact}
 
   <h2>What the game stores</h2>
-  <p>The game stores your chosen alias and age group, preferences, solo progress and saved boards on your device. Solo, practice and pass-and-play can be used without an online account. Use an alias that does not reveal your real name.</p>
+  <p>The game stores your chosen alias and age group, preferences, progress, earned awards and saved boards on your device. Solo, Journey, practice, CPU Duel, Open Table and pass-and-play can be used without an online account. Use an alias that does not reveal your real name.</p>
   <p>If you use an online account, the service stores your alias and age group, cloud saves, authentication records, private invitations, league and roster membership, accepted moves and results, reactions, and reports you submit. Protected pilot accounts may also store guardian approval settings and a protected PIN record. Connection information, including IP addresses, may be processed to operate the service and limit abuse.</p>
+  <p>Daily Puzzle verification stores your assignment for the current UTC day and the days you successfully completed. Weekly Board stores your verified weekly scores. Adult accounts that use friend streaks can store private friend invitations, connections, sharing preferences and selected verified awards.</p>
 
   <h2>How we use and share it</h2>
   <p>We use this data to restore progress, enforce access rules, verify moves and results, run private competitions, and investigate reports and service problems. Invited players and eligible teammates can see the aliases and results needed for shared games. Hosting, backup and support providers may process data on behalf of the operator for those functions. Relevant data may be disclosed when required by law.</p>
+  <p>Friend sharing starts off. When you opt in, connected friends can see your current streak count, the verified awards you choose to publish, and the current Weekly Board score. Your best streak, completion dates and personal puzzle assignments stay private. Turn sharing off or remove a friend in Friend streaks to revoke their access.</p>
   <p>The Google Play game does not include an advertising or purchase provider. Sharing is optional. When you export a card, copy an invitation, or use the share sheet, the recipients and apps you choose can process that content under their own policies.</p>
 
   <h2>Retention and deletion</h2>
   <p>Account data and progress are kept while the online account is active so you can return to the game and recover your progress. Delete the account in the game under <strong>You → Online account &amp; recovery</strong>, or use the <a href="/account-deletion">account deletion page</a> with your recovery key.</p>
-  <p>Deletion removes the account’s profile details and cloud progress, invalidates sign-in sessions and the recovery key, and removes account reports and reactions. Other players keep their shared competition records and replays with the deleted account labelled “Deleted player”. Local profiles and files you exported can remain on devices where they were stored. Remove individual profiles under <strong>You → Family profiles</strong>.</p>
+  <p>Deletion removes the account’s profile details, cloud progress, Daily Puzzle history, Weekly Board scores and friend connections. It invalidates sign-in sessions and the recovery key, and removes account reports and reactions. Other players keep their shared competition records and replays with the deleted account labelled “Deleted player”. Local profiles and files you exported can remain on devices where they were stored. Remove individual profiles under <strong>You → Family profiles</strong>.</p>
   ${retention}
 
   <h2>Security and younger players</h2>

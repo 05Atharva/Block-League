@@ -25,6 +25,24 @@ export const palettes = {
   club: palette,
   aurora: ["#9B8BF4", "#65BDD1", "#E898C4", "#96BD7D", "#ECB56E", "#769DEB"],
   garden: ["#65A987", "#C89553", "#749EBA", "#C7839D", "#A3B65F", "#A08DC2"],
+  monsoon: ["#8DBDEA", "#98D6BD", "#C3B2EB", "#F2D681", "#EBB2CF", "#9ACDD4"],
+  kiln: ["#ED9A7B", "#EAC86E", "#A8C88B", "#9BB8ED", "#EAB6C5", "#DDAD8B"],
+};
+export const earnedBoardTones = {
+  monsoon: {
+    board: "#192B40",
+    empty: "#283F58",
+    boardEdge: "#3D5873",
+    boardBorder: "#3D5873",
+    clear: "#A7E7F3",
+  },
+  kiln: {
+    board: "#372A2C",
+    empty: "#50383B",
+    boardEdge: "#725157",
+    boardBorder: "#725157",
+    clear: "#FBE2AE",
+  },
 };
 export const themes = {
   light: {

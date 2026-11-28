@@ -69,6 +69,7 @@ export function ExtraBoard({
       <Button
         title="Confirm placement"
         testID="extra-confirm"
+        placementConfirmation
         disabled={!valid}
         onPress={() => {
           if (!anchor || !valid) return;

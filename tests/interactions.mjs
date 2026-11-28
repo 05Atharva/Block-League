@@ -402,6 +402,17 @@ try {
   await board.getByText("0 placed", { exact: true }).waitFor();
   if (captures)
     await board.screenshot({ path: join(captures, "retest-touch-drag.png") });
+  // Chromium may omit the compatibility click after a drag.
+  await board.getByTestId("confirm-place").evaluate((control) => {
+    control.addEventListener(
+      "click",
+      (event) => event.stopImmediatePropagation(),
+      {
+        capture: true,
+        once: true,
+      },
+    );
+  });
   await board.getByTestId("confirm-place").tap();
   await board.getByText("1 placed", { exact: true }).waitFor();
   await button(board, "Profile and settings").tap();

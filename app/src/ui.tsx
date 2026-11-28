@@ -1,4 +1,10 @@
-import React, { createContext, useContext, useEffect, useState } from "react";
+import React, {
+  createContext,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import {
   Animated,
   Text,
@@ -6,6 +12,7 @@ import {
   Pressable,
   TextInput,
   Switch,
+  Platform,
 } from "react-native";
 import { defaults, fonts, motionSpec, radius, space, themes } from "./design";
 import type { Settings } from "./design";
@@ -61,6 +68,7 @@ export function Button({
   style,
   indicator,
   destructive = false,
+  placementConfirmation = false,
 }: any) {
   const s = useContext(Design),
     t = themes[s.theme];
@@ -68,17 +76,86 @@ export function Button({
   const motion = s.motion && !s.lowEffects;
   const fill = destructive ? t.danger : secondary ? t.surface : t.action;
   const ink = destructive ? t.onDanger : secondary ? t.text : t.onAction;
+  const touch = useRef<{ id: number; x: number; y: number } | null>(null);
+  const handled = useRef(false);
+  const fallback = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  // Chromium can omit the click on the first tap after a board drag.
+  const webTouch: Pick<
+    React.ComponentProps<typeof Pressable>,
+    "onPointerDown" | "onPointerUp" | "onPointerCancel"
+  > = placementConfirmation && Platform.OS === "web" && !disabled
+    ? {
+        onPointerDown(native) {
+          const event = native as unknown as React.PointerEvent<HTMLElement>;
+          handled.current = false;
+          touch.current =
+            event.isPrimary && event.pointerType === "touch"
+              ? { id: event.pointerId, x: event.clientX, y: event.clientY }
+              : null;
+        },
+        onPointerCancel() {
+          touch.current = null;
+        },
+        onPointerUp(native) {
+          const event = native as unknown as React.PointerEvent<HTMLElement>;
+          const start = touch.current;
+          touch.current = null;
+          if (
+            !start ||
+            start.id !== event.pointerId ||
+            Math.hypot(event.clientX - start.x, event.clientY - start.y) > 12
+          )
+            return;
+          const bounds = event.currentTarget.getBoundingClientRect();
+          if (
+            event.clientX < bounds.left ||
+            event.clientX > bounds.right ||
+            event.clientY < bounds.top ||
+            event.clientY > bounds.bottom
+          )
+            return;
+          // Give the usual click time to arrive before a placement can change screens.
+          clearTimeout(fallback.current);
+          fallback.current = setTimeout(() => {
+            fallback.current = undefined;
+            handled.current = true;
+            onPress();
+          }, 90);
+        },
+      }
+    : {};
+  useEffect(() => () => clearTimeout(fallback.current), [disabled]);
   useEffect(() => {
     if (!motion || disabled) press.setValue(1);
     return () => press.stopAnimation();
   }, [disabled, motion, press]);
   return (
     <Pressable
+      {...webTouch}
       testID={testID}
       accessibilityRole="button"
       accessibilityState={{ disabled: !!disabled }}
       disabled={disabled}
-      onPress={onPress}
+      onPress={
+        placementConfirmation && Platform.OS === "web"
+          ? (event) => {
+              clearTimeout(fallback.current);
+              fallback.current = undefined;
+              const click = event.nativeEvent as {
+                detail?: number;
+                pointerType?: string;
+              };
+              if (
+                handled.current &&
+                (click.pointerType === "touch" || (click.detail ?? 0) > 0)
+              ) {
+                handled.current = false;
+                return;
+              }
+              onPress(event);
+            }
+          : onPress
+      }
       onPressIn={
         motion
           ? () => animate(press, 0.96, motionSpec.press, curves.exit).start()
@@ -102,6 +179,8 @@ export function Button({
           alignItems: "center",
           justifyContent: "center",
           opacity: disabled ? 0.48 : pressed ? 0.84 : 1,
+          ...(placementConfirmation &&
+            Platform.OS === "web" && { touchAction: "manipulation" as const }),
         },
         style,
       ]}

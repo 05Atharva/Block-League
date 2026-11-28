@@ -1899,6 +1899,7 @@ function GameApp() {
                         />
                         <Button
                           testID="confirm-place"
+                          placementConfirmation
                           title={s.confirm}
                           disabled={!canPlace || gameDisabled}
                           style={
